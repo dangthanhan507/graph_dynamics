@@ -1,0 +1,111 @@
+import cv2
+import numpy as np
+import time
+from hardware.multi_realsense import MultiRealsense, SingleRealsense
+from multiprocessing.managers import SharedMemoryManager
+import math
+
+class Cameras:
+    def __init__(self, WH=[640,480], 
+                 capture_fps=15,
+                 obs_fps=15, 
+                 n_obs_steps=2, 
+                 enable_color=True,
+                 enable_depth=True,
+                 process_depth=True,
+                 verbose=False):
+        self.WH = WH
+        self.capture_fps = capture_fps
+        self.n_obs_steps = n_obs_steps
+        self.obs_fps = obs_fps
+        self.serial_numbers = SingleRealsense.get_connected_devices_serial()
+        self.n_fixed_cameras = len(self.serial_numbers)
+        print(f"Found {self.n_fixed_cameras} cameras")
+        
+        self.shm_manager = SharedMemoryManager()
+        self.shm_manager.start()
+        self.realsense = MultiRealsense(
+            serial_numbers=self.serial_numbers,
+            shm_manager=self.shm_manager,
+            resolution=(self.WH[0], self.WH[1]),
+            capture_fps=self.capture_fps,
+            enable_color=enable_color,
+            enable_depth=enable_depth,
+            process_depth=process_depth,
+            verbose=verbose)
+        self.realsense.set_exposure(exposure=100, gain=60)
+        self.realsense.set_white_balance(3800)
+        self.last_realsense_data = None
+        self.enable_color = enable_color
+        self.enable_depth = enable_depth
+        
+        # NOTE: add in calibration data later
+        
+    # ======== start-stop API =============
+    @property
+    def is_ready(self):
+        return self.realsense.is_ready
+    
+    def start(self, wait=True, exposure_time=5):
+        self.realsense.start(wait=False, put_start_time=time.time() + exposure_time)
+        if wait:
+            self.start_wait()
+    
+    def stop(self, wait=True):
+        self.realsense.stop(wait=False)
+        if wait:
+            self.stop_wait()
+    
+    def start_wait(self):
+        self.realsense.start_wait()
+    
+    def stop_wait(self):
+        self.realsense.stop_wait()
+        
+    # ========= context manager ===========
+    def __enter__(self):
+        self.start()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+    
+    # ========= async env API ===========
+    def get_obs(self, get_color=True, get_depth=False) -> dict:
+        assert self.is_ready
+        
+        k = math.ceil(self.n_obs_steps * (self.capture_fps / self.obs_fps))
+        self.last_realsense_data = self.realsense.get(
+            k=k,
+            out=self.last_realsense_data
+        )
+        
+        obs = dict()
+        dt = 1 / self.obs_fps
+        tstamp_list = [x['timestamp'][-1] for x in self.last_realsense_data.values()]
+        last_tstamp = np.max(tstamp_list)
+        obs_align_tstamps = last_tstamp - (np.arange(self.n_obs_steps)[::-1] * dt)
+        
+        for camera_idx, value in self.last_realsense_data.items():
+            this_tstamps = value['timestamp']
+            this_idxs = list()
+            for t in obs_align_tstamps:
+                is_before_idxs = np.nonzero(this_tstamps < t)[0]
+                this_idx = 0
+                if len(is_before_idxs) > 0:
+                    this_idx = is_before_idxs[-1]
+                this_idxs.append(this_idx)
+            if get_color:
+                assert self.enable_color
+                obs[f'color_{camera_idx}'] = value['color'][this_idxs]  # BGR
+            if get_depth and isinstance(camera_idx, int):
+                assert self.enable_depth
+                obs[f'depth_{camera_idx}'] = value['depth'][this_idxs] / 1000.0 # mm -> m
+        obs['timestamp'] = obs_align_tstamps
+        return obs
+    
+    def get_intrinsics(self):
+        return self.realsense.get_intrinsics()
+    
+    def get_extrinsics(self):
+        raise NotImplementedError()

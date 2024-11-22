@@ -1,0 +1,32 @@
+Demo:
+  directives:
+    # Add iiwa_thanos
+      - add_model:
+          name: iiwa_thanos
+          file: package://graph_tracking/urdf/med_gamma.urdf
+          default_joint_positions:
+              iiwa_joint_1: [0]
+              iiwa_joint_2: [0]
+              iiwa_joint_3: [0]
+              iiwa_joint_4: [0]
+              iiwa_joint_5: [0]
+              iiwa_joint_6: [0]
+              iiwa_joint_7: [0]
+      - add_weld:
+          parent: world
+          child: iiwa_thanos::base
+      # Add finger frames
+      - add_frame:
+          name: thanos_finger
+          X_PF:
+            base_frame: iiwa_thanos::iiwa_link_ee_kuka
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [0.0, 0.0, 0.13]
+
+  lcm_buses:
+    thanos_lcm:
+      channel_suffix: _THANOS
+  model_drivers:
+    iiwa_thanos: !IiwaDriver
+      control_mode: position_only
+      lcm_bus: thanos_lcm
