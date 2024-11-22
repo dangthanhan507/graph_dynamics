@@ -29,6 +29,8 @@ def plotText(image, center, color, text):
 '''
 NOTE: Calibrate camera setup on manipulation station using AprilTag
 
+tag_size = 5.6cm
+
 Data Format:
 -> cam2tag pose
 -> kuka_base2tag pose
@@ -65,7 +67,17 @@ if __name__ == '__main__':
         
         detections = detector.detect(gray0)
         if detections:
+            intrinsic0 = cam.get_intrinsics()[0]
+            fx = intrinsic0[0, 0]
+            fy = intrinsic0[1, 1]
+            cx = intrinsic0[0, 2]
+            cy = intrinsic0[1, 2]
+            camera_params = (fx, fy, cx, cy)
             for detect in detections:
+                pose, _, error = detector.detection_pose(detect, camera_params=camera_params, tag_size=5.6)
+                translation = pose[:3, 3]
+                print(translation, error)
+                
                 color0 = plotPoint(color0, detect.center, CENTER_COLOR)
                 color0 = plotText(color0, detect.center, CENTER_COLOR, detect.tag_id)
                 for corner in detect.corners:
