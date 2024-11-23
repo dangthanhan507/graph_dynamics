@@ -1,5 +1,6 @@
 import numpy as np
 from hardware.cameras import Cameras
+from hardware.kuka import Kuka
 import cv2
 import apriltag
 
@@ -32,12 +33,17 @@ NOTE: Calibrate camera setup on manipulation station using AprilTag
 tag_size = 5.6cm
 
 Data Format:
--> cam2tag pose
+-> cam2tag pose (apriltag lib detects in cm)
 -> kuka_base2tag pose
 '''
 
-if __name__ == '__main__':    
+if __name__ == '__main__':
     
+    print("Hello")
+    kuka = Kuka(scenario_file='../config/calib_med.yaml')
+    print(kuka.get_pose(frame_name='calibration_frame'))
+    
+    exit()
     detector = apriltag.Detector()
     exposure_time = 10
     cam = Cameras(
@@ -75,7 +81,7 @@ if __name__ == '__main__':
             camera_params = (fx, fy, cx, cy)
             for detect in detections:
                 pose, _, error = detector.detection_pose(detect, camera_params=camera_params, tag_size=5.6)
-                translation = pose[:3, 3]
+                translation = pose[:3, 3] # in cm
                 print(translation, error)
                 
                 color0 = plotPoint(color0, detect.center, CENTER_COLOR)
