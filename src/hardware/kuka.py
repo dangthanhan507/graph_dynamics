@@ -20,12 +20,12 @@ from pydrake.all import (
 )
 from manipulation.station import MakeHardwareStation, MakeHardwareStationInterface, load_scenario
 
-def get_hardware_blocks(hardware_builder, scenario, package_file='./package.xml'):
+def get_hardware_blocks(hardware_builder, scenario, meshcat = None, package_file='./package.xml'):
     real_station = hardware_builder.AddNamedSystem(
         'real_station',
         MakeHardwareStationInterface(
             scenario,
-            meshcat=None,
+            meshcat=meshcat,
             package_xmls=[package_file]
         )
     )
@@ -33,7 +33,7 @@ def get_hardware_blocks(hardware_builder, scenario, package_file='./package.xml'
         'fake_station',
         MakeHardwareStation(
             scenario,
-            meshcat=None,
+            meshcat=meshcat,
             package_xmls=[package_file]    
         )
     )
@@ -48,10 +48,10 @@ def get_hardware_blocks(hardware_builder, scenario, package_file='./package.xml'
     )
     return real_station, fake_station
 
-def create_hardware_diagram_plant(scenario_filepath, position_only=True, package_file="../package.xml"):
+def create_hardware_diagram_plant(scenario_filepath, position_only=True, meshcat=None, package_file="../package.xml"):
     hardware_builder = DiagramBuilder()
     scenario = load_scenario(filename=scenario_filepath, scenario_name="Demo")
-    real_station, fake_station = get_hardware_blocks(hardware_builder, scenario, package_file=package_file)
+    real_station, fake_station = get_hardware_blocks(hardware_builder, scenario, meshcat=meshcat, package_file=package_file)
     
     hardware_plant = fake_station.GetSubsystemByName("plant")
     
@@ -87,7 +87,7 @@ def create_hardware_diagram_plant(scenario_filepath, position_only=True, package
 #NOTE: assume u are in graph_tracking/src when running
 class Kuka:
     def __init__(self, scenario_file='../config/calib.yaml', package_file='../package.xml', position_only=True):
-        hardware_diagram, hardware_plant = create_hardware_diagram_plant(scenario_file, position_only=True, package_file=package_file)
+        hardware_diagram, hardware_plant = create_hardware_diagram_plant(scenario_file, position_only=position_only, package_file=package_file)
         self.hardware_diagram = hardware_diagram
         self.hardware_plant = hardware_plant
         self.plant_context = hardware_plant.CreateDefaultContext()
@@ -101,5 +101,3 @@ class Kuka:
         curr_q = self.get_curr_joints()
         self.hardware_plant.SetPositions(self.plant_context, curr_q)
         return self.hardware_plant.GetFrameByName(frame_name).CalcPoseInWorld(self.plant_context)
-    
-    
