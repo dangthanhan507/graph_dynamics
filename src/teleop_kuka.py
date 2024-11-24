@@ -1,28 +1,66 @@
 
 import numpy as np
 from pydrake.geometry import StartMeshcat
-from pydrake.multibody.inverse_kinematics import (
-    DifferentialInverseKinematicsParameters,
-    DifferentialInverseKinematicsStatus,
-    DoDifferentialInverseKinematics,
-)
+from pydrake.multibody.inverse_kinematics import DifferentialInverseKinematicsParameters
 from pydrake.systems.analysis import Simulator
-from pydrake.systems.framework import DiagramBuilder, EventStatus, LeafSystem
+from pydrake.systems.framework import DiagramBuilder, LeafSystem
 from pydrake.visualization import MeshcatPoseSliders
 
-from manipulation import running_as_notebook
-from manipulation.scenarios import AddIiwaDifferentialIK, ExtractBodyPose
-from manipulation.station import MakeHardwareStation, load_scenario
 from hardware.kuka import create_hardware_diagram_plant
 from pydrake.all import (
     LeafSystem,
     RigidTransform,
     Value,
     MultibodyPlant,
-    Multiplexer
+    Multiplexer,
+    DifferentialInverseKinematicsIntegrator,
 )
 # Start the visualizer.
 meshcat = StartMeshcat()
+
+
+
+def AddIiwaDifferentialIK(builder, plant, frame=None):
+    params = DifferentialInverseKinematicsParameters(
+        plant.num_positions(), plant.num_velocities()
+    )
+    time_step = plant.time_step()
+    q0 = plant.GetPositions(plant.CreateDefaultContext())
+    params.set_nominal_joint_position(q0)
+    params.set_end_effector_angular_speed_limit(np.pi/12)
+    params.set_end_effector_translational_velocity_limits(
+        [-0.1, -0.1, -0.1], [0.1, 0.1, 0.1]
+    )
+    if plant.num_positions() == 3:  # planar iiwa
+        iiwa14_velocity_limits = np.array([1.4, 1.3, 2.3])
+        params.set_joint_velocity_limits(
+            (-iiwa14_velocity_limits, iiwa14_velocity_limits)
+        )
+        # These constants are in body frame
+        assert (
+            frame.name() == "iiwa_link_7"
+        ), "Still need to generalize the remaining planar diff IK params for different frames"  # noqa
+        params.set_end_effector_velocity_flag(
+            [True, False, False, True, False, True]
+        )
+    else:
+        iiwa14_velocity_limits = np.array([1.4, 1.4, 1.7, 1.3, 2.2, 2.3, 2.3])
+        params.set_joint_velocity_limits(
+            (-iiwa14_velocity_limits, iiwa14_velocity_limits)
+        )
+        params.set_joint_centering_gain(10 * np.eye(7))
+    if frame is None:
+        frame = plant.GetFrameByName("body")
+    differential_ik = builder.AddSystem(
+        DifferentialInverseKinematicsIntegrator(
+            plant,
+            frame,
+            time_step,
+            params,
+            log_only_when_result_state_changes=True,
+        )
+    )
+    return differential_ik
 
 class HardwareKukaPose(LeafSystem):
     def __init__(self, hardware_plant: MultibodyPlant):
@@ -60,6 +98,7 @@ def teleop_3d():
         hardware_block.GetInputPort("iiwa_thanos.position"),
     )
     
+    # use_state = builder.AddSystem(ConstantValueSource(AbstractValue(True)))
     kuka_state = builder.AddSystem(Multiplexer([7,7]))
     builder.Connect(
         hardware_block.GetOutputPort("iiwa_thanos.position_measured"),
@@ -74,6 +113,11 @@ def teleop_3d():
         kuka_state.get_output_port(),
         differential_ik.GetInputPort("robot_state"),
     )
+    
+    # builder.Connect(
+    #     use_state.get_output_port(),
+    #     differential_ik.GetInputPort("use_robot_state"),
+    # )
 
     # Set up teleop widgets.
     
@@ -83,8 +127,8 @@ def teleop_3d():
     meshcat.DeleteAddedControls()
     sliders = MeshcatPoseSliders(
         meshcat,
-        lower_limit=[0, -0.5, -np.pi, -0.6, -0.8, 0.0],
-        upper_limit=[2 * np.pi, np.pi, np.pi, 0.8, 0.3, 1.1],
+        lower_limit=[-np.pi, -np.pi, -np.pi , -0.6, -0.6, 0.0],
+        upper_limit=[ np.pi, np.pi, np.pi, 0.8, 0.9, 1.1],
     )
     
     teleop = builder.AddSystem(sliders)
