@@ -59,6 +59,9 @@ def create_hardware_diagram_plant(scenario_filepath, position_only=True, meshcat
     hardware_builder.ExportInput(
         real_station.GetInputPort("iiwa_thanos.position"), "iiwa_thanos.position"
     )
+    hardware_builder.ExportInput(
+        fake_station.GetInputPort("iiwa_thanos.position"), "iiwa_thanos_meshcat.position"
+    )
     if not position_only:
         hardware_builder.ExportInput(
             real_station.GetInputPort("iiwa_thanos.feedforward_torque"), "iiwa_thanos.feedforward_torque"

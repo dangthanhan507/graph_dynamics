@@ -1,4 +1,3 @@
-
 import numpy as np
 from pydrake.geometry import StartMeshcat
 from pydrake.multibody.inverse_kinematics import DifferentialInverseKinematicsParameters
@@ -18,9 +17,6 @@ from pydrake.all import (
 )
 # Start the visualizer.
 meshcat = StartMeshcat()
-
-'''
-'''
 
 def AddIiwaDifferentialIK(builder, plant, frame=None):
     params = DifferentialInverseKinematicsParameters(
@@ -139,7 +135,10 @@ def teleop_3d():
         hardware_block.GetInputPort("iiwa_thanos.position")
     )
     
-    
+    builder.Connect(
+        differential_ik.get_output_port(),
+        hardware_block.GetInputPort("iiwa_thanos_meshcat.position")
+    )
     
     #re-route iiwa_thanos.commanded_position to iiwa_thanos.position
     # builder.Connect(
@@ -169,10 +168,6 @@ def teleop_3d():
     )
 
     # Set up teleop widgets.
-    
-    #get current iiwa_link_7 pose
-    
-    
     meshcat.DeleteAddedControls()
     sliders = MeshcatPoseSliders(
         meshcat,
