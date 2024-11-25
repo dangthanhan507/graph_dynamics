@@ -109,3 +109,26 @@ class Cameras:
     
     def get_extrinsics(self):
         raise NotImplementedError()
+
+def depth2pcd(depth, K, rgb=None):
+    assert len(depth.shape) == 2
+    H,W = depth.shape
+    x,y = np.meshgrid(np.arange(W), np.arange(H))
+    x = x.reshape(-1)
+    y = y.reshape(-1)
+    depth = depth.reshape(-1)
+    points = np.stack([x, y, np.ones_like(x)], axis=1)
+    # get only non-zero depth
+    nonzero_mask = depth > 0
+    points = points[nonzero_mask, :]
+    depth = depth[nonzero_mask]
+    
+    points = points * depth[:, None]
+    points = points @ np.linalg.inv(K).T
+    
+    if rgb is not None:
+        rgb = rgb.reshape(-1, 3)
+        rgb = rgb[nonzero_mask, :]
+        return points, rgb
+
+    return points
