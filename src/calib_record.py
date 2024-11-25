@@ -73,7 +73,9 @@ if __name__ == '__main__':
     camera_data = camera_tag_pub.cameras_datapoints
     camera_extrinsics = np.zeros((cameras.n_fixed_cameras, 4, 4))
     Ks = cameras.get_intrinsics()
-    for i in tqdm(range(1)):
+    for i in tqdm(len(camera_data)):
+        # assert len(camera_data[f"cam{i}"]) > 10, f"Camera {i} needs more data"
+        
         pts2d = np.zeros((len(camera_data[f"cam{i}"]), 2))
         pts3d = np.zeros((len(camera_data[f"cam{i}"]), 3))
         for j in range(len(camera_data[f"cam{i}"])):
@@ -84,7 +86,7 @@ if __name__ == '__main__':
         # calibrate
         cam2world_debug = camera_tag_pub.cam_debug_poses[f"cam{i}"].GetAsMatrix4()
         world2cam_debug = np.linalg.inv(cam2world_debug)
-        rvec_guess = cv2.Rodrigues(cam2world_debug[:3,:3])[0]
+        rvec_guess = cv2.Rodrigues(world2cam_debug[:3,:3])[0]
         tvec_guess = world2cam_debug[:3,3].reshape(-1,1)
         
         ret, rvec, tvec = cv2.solvePnP(pts3d, pts2d, K, distCoeffs=np.zeros(5), rvec=rvec_guess, tvec=tvec_guess, useExtrinsicGuess=True)
