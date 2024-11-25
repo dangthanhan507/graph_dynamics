@@ -20,7 +20,7 @@ Demo:
           name: calibration_frame # calibration frame
           X_PF:
             base_frame: iiwa_thanos::iiwa_link_ee_kuka
-            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            rotation: !Rpy { deg: [90.0, 0.0, 90.0]} # apriltag frame relative to kuka frame
             translation: [0.0, 0.0, 0.045] #4.5cm below gamma
 
   model_drivers:

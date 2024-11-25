@@ -54,7 +54,7 @@ def create_hardware_diagram_plant(scenario_filepath, position_only=True, meshcat
     real_station, fake_station = get_hardware_blocks(hardware_builder, scenario, meshcat=meshcat, package_file=package_file)
     
     hardware_plant = fake_station.GetSubsystemByName("plant")
-    
+    scene_graph_of_plant = fake_station.GetSubsystemByName("scene_graph")
     
     hardware_builder.ExportInput(
         real_station.GetInputPort("iiwa_thanos.position"), "iiwa_thanos.position"
@@ -85,7 +85,7 @@ def create_hardware_diagram_plant(scenario_filepath, position_only=True, meshcat
     )
     
     hardware_diagram = hardware_builder.Build()
-    return hardware_diagram, hardware_plant
+    return hardware_diagram, hardware_plant, scene_graph_of_plant
 
 #NOTE: assume u are in graph_tracking/src when running
 class Kuka:

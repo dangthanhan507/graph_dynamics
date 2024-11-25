@@ -29,10 +29,9 @@ def plotText(image, center, color, text):
 
 #given 4x4 pose, visualize frame on camera (RGB)
 def plotPose(image, pose, length=10, thickness=10, K = np.eye(3), dist=np.zeros(5)):
-    rotm = pose[:3,:3]
+    #NOTE: apriltag x-axis, points out of the tag plane
+    rvec = cv2.Rodrigues(pose[:3,:3])[0]
     tvec = pose[:3,3]
-    
-    rvec = cv2.Rodrigues(rotm)[0]
     
     axis = np.float32([[length,0,0], [0,length,0], [0,0,length]]).reshape(-1,3)
     imgpts, _ = cv2.projectPoints(axis, rvec, tvec, K, dist)
@@ -41,12 +40,12 @@ def plotPose(image, pose, length=10, thickness=10, K = np.eye(3), dist=np.zeros(
     center = tuple(center[0].ravel())
     center = (int(center[0]), int(center[1]))
     
-    image = cv2.line(image, center, tuple(imgpts[0].ravel()), (255,0,0), thickness=thickness)
+    image = cv2.line(image, center, tuple(imgpts[0].ravel()), (0,0,255), thickness=thickness) #red
     image = cv2.line(image, center, tuple(imgpts[1].ravel()), (0,255,0), thickness=thickness)
-    image = cv2.line(image, center, tuple(imgpts[2].ravel()), (0,0,255), thickness=thickness)
+    image = cv2.line(image, center, tuple(imgpts[2].ravel()), (255,0,0), thickness=thickness)
     return image
 
-def visualize_detections(image, detections, K=np.eye(3), dist=np.zeros(5)):
+def visualize_detections(image, detections, K=np.eye(3), dist=np.zeros(5), toprint=False):
     fx = K[0,0]
     fy = K[1,1]
     cx = K[0,2]
@@ -55,6 +54,9 @@ def visualize_detections(image, detections, K=np.eye(3), dist=np.zeros(5)):
     for detect in detections:
         pose, _, error = detector.detection_pose(detect, camera_params=camera_params, tag_size=5.6)
         
+        ts = pose[:3,3]
+        if toprint:
+            print(f"ID: {detect.tag_id}, translation: {ts}")
         image = plotPose(image, pose, K=K, dist=dist)
         image = plotPoint(image, detect.center, CENTER_COLOR)
         image = plotText(image, detect.center, CENTER_COLOR, detect.tag_id)
@@ -97,7 +99,7 @@ if __name__ == '__main__':
         gray3 = cv2.cvtColor(color3, cv2.COLOR_BGR2GRAY)
         
         detections = detector.detect(gray0)
-        color0 = visualize_detections(color0, detections, K=cam0_K)
+        color0 = visualize_detections(color0, detections, K=cam0_K, toprint=True)
         detections = detector.detect(gray1)
         color1 = visualize_detections(color1, detections, K=cam1_K)
         detections = detector.detect(gray2)

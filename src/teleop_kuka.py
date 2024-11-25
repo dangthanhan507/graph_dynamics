@@ -84,7 +84,7 @@ def teleop_3d():
 
     builder = DiagramBuilder()
     
-    hardware_diagram, controller_plant = create_hardware_diagram_plant(scenario_filepath='../config/calib_med.yaml', position_only=True, meshcat = meshcat, package_file='../package.xml')
+    hardware_diagram, controller_plant, scene_graph = create_hardware_diagram_plant(scenario_filepath='../config/calib_med.yaml', position_only=True, meshcat = meshcat, package_file='../package.xml')
     
     hardware_block = builder.AddSystem(hardware_diagram)
     # Set up differential inverse kinematics.
@@ -144,7 +144,7 @@ def teleop_3d():
     kuka_ee_pose = builder.AddSystem(HardwareKukaPose(controller_plant))
     builder.Connect(hardware_block.GetOutputPort("iiwa_thanos.position_measured"), kuka_ee_pose.get_input_port())
     builder.Connect(kuka_ee_pose.get_output_port(), teleop.get_input_port()) #used for initialization
-
+    AddMultibodyTriad(controller_plant.GetFrameByName("calibration_frame"), scene_graph)
 
     diagram = builder.Build()
     simulator = Simulator(diagram)
