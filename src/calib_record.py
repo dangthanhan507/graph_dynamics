@@ -5,7 +5,7 @@ from pydrake.geometry import StartMeshcat
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.framework import DiagramBuilder
 from hardware.teleop_utils import teleop_diagram, CameraTagPublisher
-from hardware.cameras import Cameras
+from hardware.cameras import Cameras, save_extrinsics
 
 if __name__ == '__main__':
     meshcat = StartMeshcat()
@@ -45,9 +45,21 @@ if __name__ == '__main__':
     meshcat.AddButton("Record Image", "KeyC")
     meshcat.AddButton("Display Counter", "KeyV")
     meshcat.AddButton("Debug Poses", "KeyB")
+    meshcat.AddButton("Debug Cam0", "Digit0")
+    meshcat.AddButton("Debug Cam1", "Digit1")
+    meshcat.AddButton("Debug Cam2", "Digit2")
+    meshcat.AddButton("Debug Cam3", "Digit3")
+    meshcat.AddButton("Save Debugs", "KeyG")
     current_record_button_ctr = 0
     current_display_button_ctr = 0
     current_debug_button_ctr = 0
+    
+    current_debug_cam0_ctr = 0
+    current_debug_cam1_ctr = 0
+    current_debug_cam2_ctr = 0
+    current_debug_cam3_ctr = 0
+    
+    save_debug_json = dict()
     while meshcat.GetButtonClicks("Stop Simulation") < 1:
         simulator.AdvanceTo(simulator.get_context().get_time() + 2.0)
         if meshcat.GetButtonClicks("Record Image") > current_record_button_ctr:
@@ -64,8 +76,30 @@ if __name__ == '__main__':
             for key in camera_tag_pub.cameras_datapoints.keys():
                 print(f"\t{key}: {camera_tag_pub.cam_debug_poses[key]}")
             current_debug_button_ctr+=1
+        if meshcat.GetButtonClicks("Debug Cam0") > current_debug_cam0_ctr:
+            print("Debug Cam0")
+            save_debug_json['cam0'] = camera_tag_pub.cam_debug_poses['cam0'].inverse().GetAsMatrix4().tolist()
+            current_debug_cam0_ctr+=1
+        if meshcat.GetButtonClicks("Debug Cam1") > current_debug_cam1_ctr:
+            print("Debug Cam1")
+            save_debug_json['cam1'] = camera_tag_pub.cam_debug_poses['cam1'].inverse().GetAsMatrix4().tolist()
+            current_debug_cam1_ctr+=1
+        if meshcat.GetButtonClicks("Debug Cam2") > current_debug_cam2_ctr:
+            print("Debug Cam2")
+            save_debug_json['cam2'] = camera_tag_pub.cam_debug_poses['cam2'].inverse().GetAsMatrix4().tolist()
+            current_debug_cam2_ctr+=1
+        if meshcat.GetButtonClicks("Debug Cam3") > current_debug_cam3_ctr:
+            print("Debug Cam3")
+            save_debug_json['cam3'] = camera_tag_pub.cam_debug_poses['cam3'].inverse().GetAsMatrix4().tolist()
+            current_debug_cam3_ctr+=1
+        if meshcat.GetButtonClicks("Save Debugs") > 0:
+            print("Saving Debugs")
+            save_extrinsics(save_debug_json, '../config/camera_extrinsics.json')
     meshcat.DeleteButton("Stop Simulation")
     meshcat.DeleteButton("Record Image")
+    meshcat.DeleteButton("Display Counter")
+    meshcat.DeleteButton("Debug Poses")
+    meshcat.DeleteButton("Debug Cam0")
     
     # start calibration
     

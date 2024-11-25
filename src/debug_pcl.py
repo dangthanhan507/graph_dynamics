@@ -13,7 +13,7 @@ from pydrake.all import (
     Value
 )
 import time
-from hardware.cameras import Cameras, depth2pcd
+from hardware.cameras import Cameras, depth2pcd, load_extrinsics
 #NOTE: test getting point clouds from realsense camera
 
 class CamerasToPointCloud(LeafSystem):
@@ -33,17 +33,13 @@ class CamerasToPointCloud(LeafSystem):
         # start = time.time()
         pts3d, rgb = depth2pcd(depth0, self.Ks[0], color0[:,:,::-1])
         pcl = PointCloud(new_size = pts3d.shape[0], fields= Fields(BaseField.kXYZs | BaseField.kRGBs))
-        mutable_rgb = pcl.mutable_rgbs().T
-        mutable_xyz = pcl.mutable_xyzs().T
-        mutable_rgb[:] = rgb
-        mutable_xyz[:] = pts3d
-        pcl.VoxelizedDownSample(voxel_size=0.03, parallelize=True)
+        pcl.mutable_rgbs()[:] = rgb.T
+        pcl.mutable_xyzs()[:] = pts3d.T
+        
+        output.set_value(pcl.VoxelizedDownSample(voxel_size=1e-3, parallelize=False))
         # delta = time.time() - start
         # print(delta)
         
-        
-        output.set_value(pcl)
-        pass
 if __name__ == '__main__':
     print("For Jayjun-san")
     
@@ -63,7 +59,7 @@ if __name__ == '__main__':
     
     
     cam2pcl = builder.AddSystem(CamerasToPointCloud(cameras))
-    meshcat_pcl_vis = builder.AddSystem(MeshcatPointCloudVisualizer(meshcat, path="/drake", publish_period=0.01))
+    meshcat_pcl_vis = builder.AddSystem(MeshcatPointCloudVisualizer(meshcat, path="/drake", publish_period=1e-3))
     
     builder.Connect(
         cam2pcl.get_output_port(0),
