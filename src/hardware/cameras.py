@@ -4,6 +4,7 @@ import time
 from hardware.multi_realsense import MultiRealsense, SingleRealsense
 from multiprocessing.managers import SharedMemoryManager
 import math
+import json
 
 class Cameras:
     def __init__(self, WH=[640,480], 
@@ -119,16 +120,32 @@ def depth2pcd(depth, K, rgb=None):
     depth = depth.reshape(-1)
     points = np.stack([x, y, np.ones_like(x)], axis=1)
     # get only non-zero depth
-    nonzero_mask = depth > 0
-    points = points[nonzero_mask, :]
-    depth = depth[nonzero_mask]
+    mask = (depth > 0) & (depth < 0.8)
+    points = points[mask, :]
+    depth = depth[mask]
     
     points = points * depth[:, None]
     points = points @ np.linalg.inv(K).T
     
     if rgb is not None:
         rgb = rgb.reshape(-1, 3)
-        rgb = rgb[nonzero_mask, :]
+        rgb = rgb[mask, :]
         return points, rgb
 
     return points
+
+def save_extrinsics(cam_names, extrinsics, filename):
+    json_dict = dict()
+    for i in range(len(cam_names)):
+        cam_name = cam_names[i]
+        extrinsic = extrinsics[i]
+        json_dict[cam_name] = extrinsic.tolist()
+    with open(filename, 'w') as f:
+        json.dump(json_dict, f)
+def load_extrinsics(filename):
+    with open(filename, 'r') as f:
+        json_dict = json.load(f)
+    # turn all lists into numpy arrays
+    for key in json_dict.keys():
+        json_dict[key] = np.array(json_dict[key])
+    return json_dict
