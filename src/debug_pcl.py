@@ -30,13 +30,16 @@ class CamerasToPointCloud(LeafSystem):
         depth0 = obs['depth_0'][-1]
         
         
+        # start = time.time()
         pts3d, rgb = depth2pcd(depth0, self.Ks[0], color0[:,:,::-1])
-        
         pcl = PointCloud(new_size = pts3d.shape[0], fields= Fields(BaseField.kXYZs | BaseField.kRGBs))
         mutable_rgb = pcl.mutable_rgbs().T
         mutable_xyz = pcl.mutable_xyzs().T
         mutable_rgb[:] = rgb
         mutable_xyz[:] = pts3d
+        pcl.VoxelizedDownSample(voxel_size=0.03, parallelize=True)
+        # delta = time.time() - start
+        # print(delta)
         
         
         output.set_value(pcl)
@@ -60,7 +63,7 @@ if __name__ == '__main__':
     
     
     cam2pcl = builder.AddSystem(CamerasToPointCloud(cameras))
-    meshcat_pcl_vis = builder.AddSystem(MeshcatPointCloudVisualizer(meshcat, path="/drake"))
+    meshcat_pcl_vis = builder.AddSystem(MeshcatPointCloudVisualizer(meshcat, path="/drake", publish_period=0.01))
     
     builder.Connect(
         cam2pcl.get_output_port(0),
