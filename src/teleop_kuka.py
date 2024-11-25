@@ -15,6 +15,7 @@ from pydrake.all import (
     DifferentialInverseKinematicsIntegrator,
     ConstantValueSource
 )
+from manipulation.scenarios import AddMultibodyTriad
 # Start the visualizer.
 meshcat = StartMeshcat()
 
@@ -76,45 +77,7 @@ class HardwareKukaPose(LeafSystem):
         self._plant.SetPositions(self._plant_context, q)
         pose = self._plant.GetFrameByName("iiwa_link_7").CalcPoseInWorld(self._plant_context)
         
-        # print("HardwareKukaPose:")
-        # # print(pose.rotation().ToRollPitchYaw())
-        # # print(pose.translation())
-        # print()
-        
         output.set_value(pose)
-
-class PrintPosition(LeafSystem):
-    def __init__(self, hardware_plant: MultibodyPlant):
-        LeafSystem.__init__(self)
-        self._plant = hardware_plant
-        self._plant_context = hardware_plant.CreateDefaultContext()
-        
-        self.DeclareVectorInputPort("position", 7)
-        self.DeclarePeriodicPublishEvent(period_sec=0.1, offset_sec=0.0, publish=self.Publish)
-    def Publish(self, context):
-        q = self.get_input_port().Eval(context)
-        self._plant.SetPositions(self._plant_context, q)
-        pose = self._plant.GetFrameByName("iiwa_link_7").CalcPoseInWorld(self._plant_context)
-        
-        # print("DiffIK out:")
-        # # print(pose.rotation().ToRollPitchYaw())
-        # # print(pose.translation())
-        # print(q)
-        # print()
-
-class PrintPose(LeafSystem):
-    def __init__(self, msg: str):
-        LeafSystem.__init__(self)
-        self.msg = msg
-        self.DeclareAbstractInputPort("pose", Value(RigidTransform()))
-        self.DeclarePeriodicPublishEvent(period_sec=0.1, offset_sec=0.0, publish=self.Publish)
-    def Publish(self, context):
-        pose = self.get_input_port().Eval(context)
-        
-        # print(self.msg)
-        # print(pose.rotation().ToRollPitchYaw())
-        # print(pose.translation())
-        # print()
 
 def teleop_3d():
     meshcat.ResetRenderMode()
@@ -139,12 +102,6 @@ def teleop_3d():
         differential_ik.get_output_port(),
         hardware_block.GetInputPort("iiwa_thanos_meshcat.position")
     )
-    
-    #re-route iiwa_thanos.commanded_position to iiwa_thanos.position
-    # builder.Connect(
-    #     hardware_block.GetOutputPort("iiwa_thanos.position_commanded"),
-    #     hardware_block.GetInputPort("iiwa_thanos.position")
-    # )
     
     kuka_state = builder.AddSystem(Multiplexer([7,7]))
     builder.Connect(
