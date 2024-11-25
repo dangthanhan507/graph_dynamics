@@ -28,7 +28,7 @@ def plotText(image, center, color, text):
                        1, color, 3)
 
 #given 4x4 pose, visualize frame on camera (RGB)
-def plotPose(image, pose, length=10, thickness=10, K = np.eye(3), dist=np.zeros(5)):
+def plotPose(image, pose, length=0.1, thickness=10, K = np.eye(3), dist=np.zeros(5)):
     #NOTE: apriltag x-axis, points out of the tag plane
     rvec = cv2.Rodrigues(pose[:3,:3])[0]
     tvec = pose[:3,3]
@@ -52,7 +52,7 @@ def visualize_detections(image, detections, K=np.eye(3), dist=np.zeros(5), topri
     cy = K[1,2]
     camera_params = (fx, fy, cx, cy)
     for detect in detections:
-        pose, _, error = detector.detection_pose(detect, camera_params=camera_params, tag_size=5.6)
+        pose, _, error = detector.detection_pose(detect, camera_params=camera_params, tag_size=0.056)
         
         ts = pose[:3,3]
         if toprint:
