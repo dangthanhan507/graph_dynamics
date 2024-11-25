@@ -207,21 +207,29 @@ def visualize_detections(image, detections):
 
 ## --- camera drake API ---
 class CameraTagPublisher(LeafSystem):
-    def __init__(self, cameras: Cameras, tag_width: float = 0.056):
+    def __init__(self, cameras: Cameras, Ks, tag_width: float = 0.056):
         LeafSystem.__init__(self)
         self.tag_width = tag_width
+        self.Ks = Ks
         self.cameras = cameras
         self.n_cam = cameras.n_fixed_cameras
         self.detector = apriltag.Detector()
         self.tag2kukabase = RigidTransform()
         self.cameras_datapoints = defaultdict(list)
+        self.cam_debug_poses = dict()
         self.obs = None
+        
         # take as input Kuka
         self.DeclareAbstractInputPort("tag2kukabase", Value(RigidTransform()))
+        
+        #get streamed info
         self.DeclarePeriodicPublishEvent(period_sec=1.0/self.cameras.capture_fps, offset_sec=0.0, publish=self.SaveObservation)
         self.DeclarePeriodicPublishEvent(period_sec=1.0/self.cameras.capture_fps, offset_sec=0.0, publish=self.SaveKukaPose)
+        
+        #do something with streamed info
         self.DeclarePeriodicPublishEvent(period_sec=1.0/self.cameras.capture_fps, offset_sec=0.1, publish=self.VisualizeCameras)
         self.DeclareForcedPublishEvent(self.DetectTagEvent)
+        
     def SaveObservation(self, context):
         self.obs = self.cameras.get_obs(get_color=True, get_depth=False)
     def SaveKukaPose(self, context):
@@ -240,7 +248,15 @@ class CameraTagPublisher(LeafSystem):
                     pt_3d = self.tag2kukabase.translation()
                     self.cameras_datapoints[f'cam{cam_idx}'].append( (pt_2d,pt_3d) )
                     
-        print(self.cameras_datapoints)
+                    #get debug pose
+                    K = self.Ks[cam_idx]
+                    tag2kukabase = self.tag2kukabase.GetAsMatrix4()
+                    camera_params = K[0,0],K[1,1],K[0,2],K[1,2]
+                    tag2cam, _, _ = self.detector.detection_pose(detect, camera_params=camera_params, tag_size=self.tag_width)
+                    cam2tag = np.linalg.inv(tag2cam)
+                    cam2kukabase = tag2kukabase @ cam2tag
+                    self.cam_debug_poses[f'cam{cam_idx}'] = RigidTransform(cam2kukabase)
+                    
         print()
     def VisualizeCameras(self, context):
         assert self.n_cam == 4, "Only works for 4 cameras, doing a 2x2 visual."

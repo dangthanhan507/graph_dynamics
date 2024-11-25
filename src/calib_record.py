@@ -1,4 +1,6 @@
 import numpy as np
+import cv2
+from tqdm import tqdm
 from pydrake.geometry import StartMeshcat
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.framework import DiagramBuilder
@@ -20,7 +22,8 @@ if __name__ == '__main__':
     cameras.start(exposure_time=10)
     
     builder = DiagramBuilder()
-    camera_tag_pub = CameraTagPublisher(cameras, tag_width=0.056)
+    Ks = cameras.get_intrinsics()
+    camera_tag_pub = CameraTagPublisher(cameras, Ks, tag_width=0.056)
     teleop_diag,teleop_scene_graph = teleop_diagram(meshcat, kuka_frame_name="calibration_frame")
     
     teleop_block = builder.AddSystem(teleop_diag)
@@ -40,14 +43,57 @@ if __name__ == '__main__':
     
     meshcat.AddButton("Stop Simulation", "Escape")
     meshcat.AddButton("Record Image", "KeyC")
+    meshcat.AddButton("Display Counter", "KeyV")
+    meshcat.AddButton("Debug Poses", "KeyB")
     current_record_button_ctr = 0
+    current_display_button_ctr = 0
+    current_debug_button_ctr = 0
     while meshcat.GetButtonClicks("Stop Simulation") < 1:
         simulator.AdvanceTo(simulator.get_context().get_time() + 2.0)
         if meshcat.GetButtonClicks("Record Image") > current_record_button_ctr:
             print("Recording Image")
             diagram.ForcedPublish(diagram_context)
             current_record_button_ctr+=1
+        if meshcat.GetButtonClicks("Display Counter") > current_display_button_ctr:
+            print("Display Counter:")
+            for key in camera_tag_pub.cameras_datapoints.keys():
+                print(f"\t{key}: {len(camera_tag_pub.cameras_datapoints[key])}")
+            current_display_button_ctr+=1
+        if meshcat.GetButtonClicks("Debug Poses") > current_debug_button_ctr:
+            print("Debug Poses:")
+            for key in camera_tag_pub.cameras_datapoints.keys():
+                print(f"\t{key}: {camera_tag_pub.cam_debug_poses[key]}")
+            current_debug_button_ctr+=1
     meshcat.DeleteButton("Stop Simulation")
+    meshcat.DeleteButton("Record Image")
     
-    print('\n\n')
-    print(camera_tag_pub.cameras_datapoints)
+    # start calibration
+    
+    # get set of 2d points and 3d points for each camera and calibrate
+    camera_data = camera_tag_pub.cameras_datapoints
+    camera_extrinsics = np.zeros((cameras.n_fixed_cameras, 4, 4))
+    Ks = cameras.get_intrinsics()
+    for i in tqdm(range(1)):
+        pts2d = np.zeros((len(camera_data[f"cam{i}"]), 2))
+        pts3d = np.zeros((len(camera_data[f"cam{i}"]), 3))
+        for j in range(len(camera_data[f"cam{i}"])):
+            pt2d, pt3d = camera_data[f"cam{i}"][j]
+            pts2d[j,:] = pt2d
+            pts3d[j,:] = pt3d
+        K = Ks[i] #intrinsic matrix
+        # calibrate
+        cam2world_debug = camera_tag_pub.cam_debug_poses[f"cam{i}"].GetAsMatrix4()
+        world2cam_debug = np.linalg.inv(cam2world_debug)
+        rvec_guess = cv2.Rodrigues(cam2world_debug[:3,:3])[0]
+        tvec_guess = world2cam_debug[:3,3].reshape(-1,1)
+        
+        ret, rvec, tvec = cv2.solvePnP(pts3d, pts2d, K, distCoeffs=np.zeros(5), rvec=rvec_guess, tvec=tvec_guess, useExtrinsicGuess=True)
+        
+        rotm = cv2.Rodrigues(rvec)[0]
+        H = np.eye(4)
+        H[:3,:3] = rotm
+        H[:3,3] = tvec.flatten()
+        camera_extrinsics[i] = H
+        
+    print(H)
+    print(np.linalg.inv(H))
