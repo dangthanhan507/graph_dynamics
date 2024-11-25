@@ -14,7 +14,8 @@ class Cameras:
                  enable_color=True,
                  enable_depth=True,
                  process_depth=True,
-                 verbose=False):
+                 verbose=False,
+                 extrinsic_path=None):
         self.WH = WH
         self.capture_fps = capture_fps
         self.n_obs_steps = n_obs_steps
@@ -41,7 +42,11 @@ class Cameras:
         self.enable_depth = enable_depth
         
         # NOTE: add in calibration data later
-        
+        if extrinsic_path is not None:
+            self.extrinsics = np.zeros((self.n_fixed_cameras, 4, 4))
+            extrinsics = load_extrinsics(extrinsic_path)
+            for i in range(self.n_fixed_cameras):
+                self.extrinsics[i] = extrinsics[f'cam{i}']
     # ======== start-stop API =============
     @property
     def is_ready(self):
@@ -109,7 +114,7 @@ class Cameras:
         return self.realsense.get_intrinsics()
     
     def get_extrinsics(self):
-        raise NotImplementedError()
+        return self.extrinsics
 
 def depth2pcd(depth, K, rgb=None):
     assert len(depth.shape) == 2
