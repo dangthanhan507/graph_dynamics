@@ -1,3 +1,4 @@
+#NOTE: YOINKED FROM https://github.com/robo-alex/gs-dynamics
 from typing import Tuple
 from dataclasses import dataclass
 import numpy as np

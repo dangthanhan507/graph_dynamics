@@ -1,3 +1,4 @@
+#NOTE: YOINKED FROM https://github.com/robo-alex/gs-dynamics
 from typing import List, Optional, Union, Dict, Callable
 import numbers
 import time
@@ -5,7 +6,6 @@ from multiprocessing.managers import SharedMemoryManager
 import numpy as np
 import pyrealsense2 as rs
 from hardware.single_realsense import SingleRealsense
-
 class MultiRealsense:
     def __init__(self,
         serial_numbers: Optional[List[str]]=None,

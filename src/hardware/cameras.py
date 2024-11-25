@@ -134,12 +134,7 @@ def depth2pcd(depth, K, rgb=None):
 
     return points
 
-def save_extrinsics(cam_names, extrinsics, filename):
-    json_dict = dict()
-    for i in range(len(cam_names)):
-        cam_name = cam_names[i]
-        extrinsic = extrinsics[i]
-        json_dict[cam_name] = extrinsic.tolist()
+def save_extrinsics(json_dict, filename):
     with open(filename, 'w') as f:
         json.dump(json_dict, f)
 def load_extrinsics(filename):

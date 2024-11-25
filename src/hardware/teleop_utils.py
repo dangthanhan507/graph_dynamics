@@ -205,7 +205,7 @@ def visualize_detections(image, detections):
             image = plotPoint(image, corner, CORNER_COLOR)
     return image
 
-## --- camera drake API ---
+## --- camera teleop drake API ---
 class CameraTagPublisher(LeafSystem):
     def __init__(self, cameras: Cameras, Ks, tag_width: float = 0.056):
         LeafSystem.__init__(self)

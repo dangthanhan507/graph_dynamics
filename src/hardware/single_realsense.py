@@ -1,3 +1,4 @@
+#NOTE: YOINKED FROM https://github.com/robo-alex/gs-dynamics
 from typing import Optional, Callable, Dict
 import os
 import enum

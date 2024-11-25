@@ -1,3 +1,4 @@
+#NOTE: YOINKED FROM https://github.com/robo-alex/gs-dynamics
 from typing import Dict, List, Union
 
 from queue import Empty
