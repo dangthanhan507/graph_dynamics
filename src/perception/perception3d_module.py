@@ -19,7 +19,7 @@ from hardware.cameras import depth2pcd
 #NOTE: purpose of this module is to get point clouds of desired object from all cameras
 
 class Perception3DModule:
-    def __init__(self, vis_path, workspace_bbox = np.zeros((3,2)), device='cuda:0'):
+    def __init__(self, vis_path = "", workspace_bbox = np.zeros((3,2)), device='cuda:0'):
         self.device = device
         self.vis_path = vis_path
         
@@ -105,8 +105,10 @@ class Perception3DModule:
         masks, _, _ = self.sam_model.predict_torch(
             point_coords=None,
             point_labels=None,
-            boxes=self.sam_model.transform.apply_boxes_torch
-        )[:, 0, :, :] #(n_detections, H, W)
+            boxes=self.sam_model.transform.apply_boxes_torch(boxes, image.shape[:2]),
+            multimask_output=False
+        )
+        masks = masks[:, 0, :, :] #(n_detections, H, W)
         
         text_labels = []
         for category in range(len(text_prompts)):
@@ -131,7 +133,7 @@ class Perception3DModule:
         for obj_i in range(masks.shape[0]):
             aggr_mask[masks[obj_i]] = obj_i + 1
         
-        return (masks, aggr_mask, text_labels)
+        return (masks, aggr_mask, text_labels), (boxes, scores, labels)
     
     def camera_improc_fn(self, image, depth, intrinsics, extrinsics, additional_obj_names = []):
         #NOTE: get relevant point clouds for object through image processing (aka deep learning)
@@ -153,7 +155,7 @@ class Perception3DModule:
         boxes[:,:2] -= boxes[:,2:] / 2
         boxes[:, 2:] += boxes[:,:2] #NOTE: now boxes are in format [x0,y0,x1,y1]
         
-        (mask, _, text_labels), _ = self.segment(im, boxes, scores, labels, text_prompts)
+        (masks, _, text_labels), _ = self.segment(im, boxes, scores, labels, text_prompts)
         masks = masks.detach().cpu().numpy()
         
         mask_table = np.zeros(masks[0].shape, dtype=np.uint8)

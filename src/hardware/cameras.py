@@ -125,17 +125,12 @@ def depth2pcd(depth, K, rgb=None):
     depth = depth.reshape(-1)
     points = np.stack([x, y, np.ones_like(x)], axis=1)
     # get only non-zero depth
-    mask = (depth > 0) & (depth < 0.8)
-    points = points[mask, :]
-    depth = depth[mask]
     
     points = points * depth[:, None]
     points = points @ np.linalg.inv(K).T
     
     if rgb is not None:
-        rgb = rgb.reshape(-1, 3)
-        rgb = rgb[mask, :]
-        return points, rgb
+        return points, rgb.reshape(-1, 3)
 
     return points
 
