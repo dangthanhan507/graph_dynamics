@@ -1,4 +1,4 @@
-#NOTE: MOSTLY Yoinked from https://github.com/robo-alex/gs-dynamics 
+#NOTE: MOSTLY Yoinked from https://github.com/robo-alex/gs-dynamics
 import argparse
 import numpy as np
 import torch
@@ -198,7 +198,7 @@ class Perception3DModule:
             ptsrgb = ptsrgb[bbox_mask, :]
         
         return pts3d, ptsrgb
-    def get_pcd(self, cameras: Cameras):
+    def get_pcd(self, cameras: Cameras, object_names=['object']):
         intrinsics = cameras.get_intrinsics()
         extrinsics = cameras.get_extrinsics()
         obs = cameras.get_obs(get_depth=True, get_color=True)
@@ -209,7 +209,7 @@ class Perception3DModule:
         pts3d = []
         ptsrgb = []
         for i in range(cameras.n_fixed_cameras):
-            pts3d_i, ptsrgb_i = self.camera_improc_fn(colors[i], depths[i], intrinsics[i], extrinsics[i], additional_obj_names=['object'])
+            pts3d_i, ptsrgb_i = self.camera_improc_fn(colors[i], depths[i], intrinsics[i], extrinsics[i], additional_obj_names=object_names)
             pts3d.append(pts3d_i)
             ptsrgb.append(ptsrgb_i)
         pts3d = np.concatenate(pts3d, axis=0)

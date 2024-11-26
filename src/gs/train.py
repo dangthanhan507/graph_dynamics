@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 from gs.external import densify
 from gs.train_utils import get_custom_dataset, initialize_params, initialize_optimizer, get_loss, report_progress, get_batch
-
+import argparse
 
 def train(img_list, seg_list, init_pt_cld, metadata, loss_weights, densify_params, num_iters):
     params, variables = initialize_params(init_pt_cld, metadata)

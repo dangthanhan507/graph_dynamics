@@ -71,7 +71,7 @@ class CamerasToPointCloud(LeafSystem):
             pts3d = np.concatenate([pts3d_0, pts3d_1, pts3d_2, pts3d_3], axis=0)
             rgb = np.concatenate([rgb_0, rgb_1, rgb_2, rgb_3], axis=0)
         else:
-            pts3d, rgb = self.perception.get_pcd(self.cameras)
+            pts3d, rgb = self.perception.get_pcd(self.cameras, object_names=['box'])
 
         pcl = PointCloud(new_size = pts3d.shape[0], fields= Fields(BaseField.kXYZs | BaseField.kRGBs))
         pcl.mutable_rgbs()[:] = rgb.T

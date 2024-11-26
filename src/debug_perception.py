@@ -59,7 +59,7 @@ if __name__ == '__main__':
     perception = Perception3DModule()
     
     # test detection module
-    text_prompts = ['object', 'table']
+    text_prompts = ['box', 'table']
     boxes,scores,labels = perception.detect(color0, captions=text_prompts, box_thresholds=0.4)
     boxes_np = boxes.detach().cpu().numpy()
     boxes_np = boxes_np * np.array([[W, H, W, H]])
