@@ -1,4 +1,4 @@
-#NOTE: Yoinked from https://github.com/robo-alex/gs-dynamics
+#NOTE: YOINKED from https://github.com/JonathonLuiten/Dynamic3DGaussians
 """
 # Copyright (C) 2023, Inria
 # GRAPHDECO research group, https://team.inria.fr/graphdeco
@@ -52,59 +52,21 @@ def calc_psnr(img1, img2):
 
 
 def gaussian(window_size, sigma):
-    """
-    Generate a 1D Gaussian kernel.
-
-    Parameters:
-    - window_size: The size (length) of the output Gaussian kernel.
-    - sigma: The standard deviation of the Gaussian distribution.
-
-    Returns:
-    - A 1D tensor representing the Gaussian kernel normalized to have a sum of 1.
-    """
-
-    # For each position in the desired window size, calculate the Gaussian value. 
-    # The middle of the window corresponds to the peak of the Gaussian.
     gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)])
-    
-    # Normalize the Gaussian kernel to have a sum of 1 and return it.
     return gauss / gauss.sum()
 
 
 def create_window(window_size, channel):
-    """
-    Generate a 2D Gaussian kernel window.
-
-    Parameters:
-    - window_size: The size (width and height) of the output 2D Gaussian kernel.
-    - channel: Number of channels for which the window will be replicated.
-
-    Returns:
-    - A 4D tensor representing the Gaussian window for the specified number of channels.
-    """
-
-    # Create a 1D Gaussian kernel of size 'window_size' with standard deviation 1.5.
-    # The unsqueeze operation adds an extra dimension, making it a 2D tensor.
     _1D_window = gaussian(window_size, 1.5).unsqueeze(1)
-
-    # Compute the outer product of the 1D Gaussian kernel with itself to get a 2D Gaussian kernel.
-    # This results in a symmetric 2D Gaussian kernel.
     _2D_window = _1D_window.mm(_1D_window.t()).float().unsqueeze(0).unsqueeze(0)
-
-    # Expand the 2D window to have the desired number of channels.
-    # The expand operation replicates the 2D window for each channel.
     window = Variable(_2D_window.expand(channel, 1, window_size, window_size).contiguous())
-
     return window
 
 
 def calc_ssim(img1, img2, window_size=11, size_average=True):
     channel = img1.size(-3)
     window = create_window(window_size, channel)
-    # print('img1', img1.device)
-    # window = window.to(device=img1.device)
-    # assert torch.isfinite(img1).all(), "img1 contains NaN or Inf"
-    # assert torch.isfinite(window).all(), "window contains NaN or Inf"
+
     if img1.is_cuda:
         window = window.cuda(img1.get_device())
     window = window.type_as(img1)
@@ -175,50 +137,24 @@ def cat_params_to_optimizer(new_params, params, optimizer):
 
 
 def remove_points(to_remove, params, variables, optimizer):
-    """
-
-    Parameters:
-    - to_remove: A boolean tensor where 'True' indicates the points to remove.
-    - params: A dictionary containing parameters.
-    - variables: A dictionary containing various variables.
-    - optimizer: An optimizer object containing optimization information.
-
-    Returns:
-    - Updated params and variables dictionaries after removal.
-    """
-    
-    # Find the points that we want to keep (the opposite of `to_remove`).
     to_keep = ~to_remove
-    
-    # Extract the keys from `params` except for 'cam_m' and 'cam_c'.
     keys = [k for k in params.keys() if k not in ['cam_m', 'cam_c']]
-    
     for k in keys:
-        # Find the parameter group associated with the current key in the optimizer.
         group = [g for g in optimizer.param_groups if g['name'] == k][0]
-        
-        # Try to get the state of this group from the optimizer (this contains momentum information, etc. for optimizers like Adam).
         stored_state = optimizer.state.get(group['params'][0], None)
-        
         if stored_state is not None:
-            # Update the stored state by keeping only the desired entries.
             stored_state["exp_avg"] = stored_state["exp_avg"][to_keep]
             stored_state["exp_avg_sq"] = stored_state["exp_avg_sq"][to_keep]
-            
-            # Delete the old state and set a new parameter tensor, keeping only the desired entries and ensuring gradients can be computed.
             del optimizer.state[group['params'][0]]
             group["params"][0] = torch.nn.Parameter((group["params"][0][to_keep].requires_grad_(True)))
             optimizer.state[group['params'][0]] = stored_state
             params[k] = group["params"][0]
         else:
-            # If there's no stored state, just update the parameter tensor.
             group["params"][0] = torch.nn.Parameter(group["params"][0][to_keep].requires_grad_(True))
             params[k] = group["params"][0]
-
     variables['means2D_gradient_accum'] = variables['means2D_gradient_accum'][to_keep]
     variables['denom'] = variables['denom'][to_keep]
     variables['max_2D_radius'] = variables['max_2D_radius'][to_keep]
-    
     return params, variables
 
 
@@ -226,30 +162,15 @@ def inverse_sigmoid(x):
     return torch.log(x / (1 - x))
 
 
-def densify(params, variables, optimizer, i, grad_thresh, remove_thresh, remove_thresh_5k, scale_scene_radius):
-    """
-    Adjusts the density of points based on various conditions and thresholds.
-
-    Parameters:
-    - params: A dictionary containing parameters.
-    - variables: A dictionary containing various variables.
-    - optimizer: An optimizer object containing optimization information.
-    - i: An iteration or step count.
-    - remove_thresh: A threshold for removing points.
-
-    Returns:
-    - Updated params and variables dictionaries after adjustment.
-    """
+def densify(params, variables, optimizer, i):
     if i <= 5000:
         variables = accumulate_mean2d_gradient(variables)
+        grad_thresh = 0.0002
         if (i >= 500) and (i % 100 == 0):
-            # Calculate the gradient of the means2D values and handle NaNs.
             grads = variables['means2D_gradient_accum'] / variables['denom']
             grads[grads.isnan()] = 0.0
-            # Define points that should be cloned based on gradient thresholds and scales of the points.
             to_clone = torch.logical_and(grads >= grad_thresh, (
-                        torch.max(torch.exp(params['log_scales']), dim=1).values <= scale_scene_radius * variables['scene_radius']))
-            # Extract parameters for points that need cloning.
+                        torch.max(torch.exp(params['log_scales']), dim=1).values <= 0.01 * variables['scene_radius']))
             new_params = {k: v[to_clone] for k, v in params.items() if k not in ['cam_m', 'cam_c']}
             params = cat_params_to_optimizer(new_params, params, optimizer)
             num_pts = params['means3D'].shape[0]
@@ -257,7 +178,7 @@ def densify(params, variables, optimizer, i, grad_thresh, remove_thresh, remove_
             padded_grad = torch.zeros(num_pts, device="cuda")
             padded_grad[:grads.shape[0]] = grads
             to_split = torch.logical_and(padded_grad >= grad_thresh,
-                                         torch.max(torch.exp(params['log_scales']), dim=1).values > scale_scene_radius * variables[
+                                         torch.max(torch.exp(params['log_scales']), dim=1).values > 0.01 * variables[
                                              'scene_radius'])
             n = 2  # number to split into
             new_params = {k: v[to_split].repeat(n, 1) for k, v in params.items() if k not in ['cam_m', 'cam_c']}
@@ -276,21 +197,17 @@ def densify(params, variables, optimizer, i, grad_thresh, remove_thresh, remove_
             to_remove = torch.cat((to_split, torch.zeros(n * to_split.sum(), dtype=torch.bool, device="cuda")))
             params, variables = remove_points(to_remove, params, variables, optimizer)
 
-            remove_threshold = remove_thresh_5k if i == 5000 else remove_thresh
+            remove_threshold = 0.25 if i == 5000 else 0.005
             to_remove = (torch.sigmoid(params['logit_opacities']) < remove_threshold).squeeze()
-            # print("num of to remove: ", to_remove.sum())
             if i >= 3000:
                 big_points_ws = torch.exp(params['log_scales']).max(dim=1).values > 0.1 * variables['scene_radius']
-                # print("num of big points: ", big_points_ws.sum())
                 to_remove = torch.logical_or(to_remove, big_points_ws)
             params, variables = remove_points(to_remove, params, variables, optimizer)
-            
+
             torch.cuda.empty_cache()
 
         if i > 0 and i % 3000 == 0:
             new_params = {'logit_opacities': inverse_sigmoid(torch.ones_like(params['logit_opacities']) * 0.01)}
             params = update_params_and_optimizer(new_params, params, optimizer)
 
-    num_pts = params['means3D'].shape[0]
-
-    return params, variables, num_pts
+    return params, variables
