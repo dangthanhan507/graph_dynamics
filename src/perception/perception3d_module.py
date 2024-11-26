@@ -159,19 +159,19 @@ class Perception3DModule:
         (masks, _, text_labels), _ = self.segment(im, boxes, scores, labels, text_prompts)
         masks = masks.detach().cpu().numpy()
         
-        # mask_table = np.zeros(masks[0].shape, dtype=bool)
-        # not_mask_table = np.zeros(masks[0].shape, dtype=bool)
-        # mask_objs  = np.zeros(masks[0].shape, dtype=bool)
-        # for obj_i in range(masks.shape[0]):
-        #     if text_labels[obj_i] == 'table':
-        #         mask_table = mask_table | masks[obj_i]
-        #     else:
-        #         not_mask_table = not_mask_table | masks[obj_i]
-        #         mask_objs = mask_objs | masks[obj_i]
-        # mask_table = mask_table & (~not_mask_table)
-        # mask_obj_and_background = (~mask_table)
-        # # take segmentation mask and ensure it is within obj and background only
-        # mask = mask & mask_obj_and_background
+        mask_table = np.zeros(masks[0].shape, dtype=bool)
+        not_mask_table = np.zeros(masks[0].shape, dtype=bool)
+        mask_objs  = np.zeros(masks[0].shape, dtype=bool)
+        for obj_i in range(masks.shape[0]):
+            if text_labels[obj_i] == 'table':
+                mask_table = mask_table | masks[obj_i]
+            else:
+                not_mask_table = not_mask_table | masks[obj_i]
+                mask_objs = mask_objs | masks[obj_i]
+        mask_table = mask_table & (~not_mask_table)
+        mask_obj_and_background = (~mask_table)
+        # take segmentation mask and ensure it is within obj and background only
+        mask = mask & mask_obj_and_background
         
         # mask_objs = np.zeros(masks[0].shape, dtype=bool)
         # for obj_i in range(masks.shape[0]):
