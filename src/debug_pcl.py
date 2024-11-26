@@ -70,7 +70,7 @@ class CamerasToPointCloud(LeafSystem):
         pcl.mutable_rgbs()[:] = rgb.T
         pcl.mutable_xyzs()[:] = pts3d.T
         
-        output.set_value(pcl.VoxelizedDownSample(voxel_size=1e-2, parallelize=False))
+        output.set_value(pcl.VoxelizedDownSample(voxel_size=1e-3, parallelize=False))
         # delta = time.time() - start
         # print(delta)
         

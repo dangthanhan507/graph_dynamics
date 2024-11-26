@@ -6,7 +6,7 @@ import open3d as o3d
 import cv2
 from PIL import Image
 
-from real_world.utils.pcd_utils import visualize_o3d, depth2fgpcd
+# from real_world.utils.pcd_utils import visualize_o3d, depth2fgpcd
 
 from segment_anything import SamPredictor, sam_model_registry
 import groundingdino.datasets.transforms as T
@@ -15,6 +15,7 @@ from groundingdino.util import box_ops
 from groundingdino.util.slconfig import SLConfig
 from groundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
 
+from hardware.cameras import depth2pcd
 #NOTE: purpose of this module is to get point clouds of desired object from all cameras
 
 class Perception3DModule:
@@ -132,4 +133,46 @@ class Perception3DModule:
         
         return (masks, aggr_mask, text_labels)
     
-    
+    def camera_improc_fn(self, image, depth, intrinsics, extrinsics, additional_obj_names = []):
+        #NOTE: get relevant point clouds for object through image processing (aka deep learning)
+        text_prompts = ['table'] + additional_obj_names
+        
+        H,W,_ = image.shape
+        K = intrinsics
+        H_cam2world = np.linalg.inv(extrinsics)
+        R_cam2world = H_cam2world[:3,:3]
+        t_cam2world = H_cam2world[:3,3]
+        
+        depth_im = depth.copy().astype(np.float32)
+        pts3d = depth2pcd(depth_im, K)
+        im = image.copy()
+        
+        # detect and segment
+        boxes, scores, labels = self.detect(im, text_prompts, box_thresholds=0.3) #NOTE: boxes are in format [x0,y0,w,h]
+        boxes = boxes * torch.Tensor([[W, H, W, H]]).to(device=self.device, dtype=boxes.dtype)
+        boxes[:,:2] -= boxes[:,2:] / 2
+        boxes[:, 2:] += boxes[:,:2] #NOTE: now boxes are in format [x0,y0,x1,y1]
+        
+        (mask, _, text_labels), _ = self.segment(im, boxes, scores, labels, text_prompts)
+        masks = masks.detach().cpu().numpy()
+        
+        mask_table = np.zeros(masks[0].shape, dtype=np.uint8)
+        not_mask_table = np.zeros(masks[0].shape, dtype=np.uint8)
+        mask_objs  = np.zeros(masks[0].shape, dtype=np.uint8)
+        for obj_i in range(masks.shape[0]):
+            if text_labels[obj_i] == 'table':
+                mask_table = mask_table | masks[obj_i]
+            else:
+                not_mask_table = not_mask_table | masks[obj_i]
+                mask_objs = mask_objs | masks[obj_i]
+        mask_table = mask_table & (~not_mask_table)
+        mask_obj_and_background = (~mask_table).flatten()
+        
+        # take segmentation mask and ensure it is within obj and background only
+        mask = mask & mask_obj_and_background
+        pts3d = pts3d[mask]
+        if len(pts3d.shape) == 1:
+            pts3d = pts3d.reshape(-1,3)
+        
+        pts3d = (R_cam2world @ pts3d.T).T + t_cam2world
+        return pts3d
