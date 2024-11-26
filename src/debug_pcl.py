@@ -96,8 +96,11 @@ if __name__ == '__main__':
     cameras.start(exposure_time=10)
     
     builder = DiagramBuilder()
-    
-    perception = Perception3DModule()
+    workspace_bbox = np.array([[-0.3, 0.3],
+                               [0.35, 1.0],
+                               [-0.4, 1.0]])
+    # workspace_bbox = None
+    perception = Perception3DModule(workspace_bbox=workspace_bbox)
     cam2pcl = builder.AddSystem(CamerasToPointCloud(cameras, perception))
     meshcat_pcl_vis = builder.AddSystem(MeshcatPointCloudVisualizer(meshcat, path="/drake", publish_period=1e-4))
     
