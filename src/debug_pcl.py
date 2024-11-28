@@ -98,7 +98,7 @@ if __name__ == '__main__':
     builder = DiagramBuilder()
     workspace_bbox = np.array([[-0.3, 0.3],
                                [0.35, 1.0],
-                               [-0.4, 1.0]])
+                               [-0.01, 1.0]])
     # workspace_bbox = None
     perception = Perception3DModule(workspace_bbox=workspace_bbox)
     cam2pcl = builder.AddSystem(CamerasToPointCloud(cameras, perception))

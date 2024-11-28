@@ -18,6 +18,24 @@ from groundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
 from hardware.cameras import depth2pcd
 #NOTE: purpose of this module is to get point clouds of desired object from all cameras
 
+def outlier_rejection(pcd):
+    outliers = None
+    new_outlier = None
+    rm_iter = 0
+    while new_outlier is None or len(new_outlier.points) > 0:
+        _, inlier_idx = pcd.remove_statistical_outlier(
+            nb_neighbors = 25, std_ratio = 1.5 + rm_iter * 0.5
+        )
+        new_pcd = pcd.select_by_index(inlier_idx)
+        new_outlier = pcd.select_by_index(inlier_idx, invert=True)
+        if outliers is None:
+            outliers = new_outlier
+        else:
+            outliers += new_outlier
+        pcd = new_pcd
+        rm_iter += 1
+    return pcd
+
 class Perception3DModule:
     def __init__(self, vis_path = "", workspace_bbox = None, device='cuda:0'):
         self.device = device
@@ -135,9 +153,10 @@ class Perception3DModule:
         
         return (masks, aggr_mask, text_labels), (boxes, scores, labels)
     
-    def camera_improc_fn(self, image, depth, intrinsic, extrinsic, additional_obj_names = []):
+    def camera_improc_fn(self, image, depth, intrinsic, extrinsic, additional_obj_names = ['object']):
         #NOTE: get relevant point clouds for object through image processing (aka deep learning)
-        text_prompts = ['table'] + additional_obj_names
+        # text_prompts = ['table'] + additional_obj_names
+        text_prompts = additional_obj_names
         
         H,W,_ = image.shape
         K = intrinsic
@@ -159,25 +178,25 @@ class Perception3DModule:
         (masks, _, text_labels), _ = self.segment(im, boxes, scores, labels, text_prompts)
         masks = masks.detach().cpu().numpy()
         
-        mask_table = np.zeros(masks[0].shape, dtype=bool)
-        not_mask_table = np.zeros(masks[0].shape, dtype=bool)
-        mask_objs  = np.zeros(masks[0].shape, dtype=bool)
-        for obj_i in range(masks.shape[0]):
-            if text_labels[obj_i] == 'table':
-                mask_table = mask_table | masks[obj_i]
-            else:
-                not_mask_table = not_mask_table | masks[obj_i]
-                mask_objs = mask_objs | masks[obj_i]
-        mask_table = mask_table & (~not_mask_table)
-        mask_obj_and_background = (~mask_table)
-        # take segmentation mask and ensure it is within obj and background only
-        mask = mask & mask_obj_and_background
-        
-        # mask_objs = np.zeros(masks[0].shape, dtype=bool)
+        # mask_table = np.zeros(masks[0].shape, dtype=bool)
+        # not_mask_table = np.zeros(masks[0].shape, dtype=bool)
+        # mask_objs  = np.zeros(masks[0].shape, dtype=bool)
         # for obj_i in range(masks.shape[0]):
-        #     if text_labels[obj_i] != 'table':
+        #     if text_labels[obj_i] == 'table':
+        #         mask_table = mask_table | masks[obj_i]
+        #     else:
+        #         not_mask_table = not_mask_table | masks[obj_i]
         #         mask_objs = mask_objs | masks[obj_i]
-        # mask = mask & mask_objs
+        # mask_table = mask_table & (~not_mask_table)
+        # mask_obj_and_background = (~mask_table)
+        # take segmentation mask and ensure it is within obj and background only
+        # mask = mask & mask_obj_and_background
+        
+        mask_objs = np.zeros(masks[0].shape, dtype=bool)
+        for obj_i in range(masks.shape[0]):
+            if text_labels[obj_i] != 'table':
+                mask_objs = mask_objs | masks[obj_i]
+        mask = mask & mask_objs
         
         
         mask = mask.flatten()
@@ -197,6 +216,16 @@ class Perception3DModule:
             pts3d = pts3d[bbox_mask, :]
             ptsrgb = ptsrgb[bbox_mask, :]
         
+        # do some open3d point cloud processing
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(pts3d)
+        pcd.colors = o3d.utility.Vector3dVector(ptsrgb / 255)
+        pcd = pcd.voxel_down_sample(voxel_size=0.005)
+        pcd = outlier_rejection(pcd)
+        
+        pts3d = np.asarray(pcd.points)
+        ptsrgb = np.asarray(pcd.colors) * 255
+            
         return pts3d, ptsrgb
     def get_pcd(self, cameras: Cameras, object_names=['object']):
         intrinsics = cameras.get_intrinsics()
