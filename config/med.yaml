@@ -23,10 +23,6 @@ Demo:
             rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
             translation: [0.0, 0.0, 0.13]
 
-  lcm_buses:
-    thanos_lcm:
-      channel_suffix: _THANOS
   model_drivers:
     iiwa_thanos: !IiwaDriver
       control_mode: position_only
-      lcm_bus: thanos_lcm
