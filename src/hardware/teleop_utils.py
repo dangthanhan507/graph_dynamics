@@ -30,9 +30,9 @@ def AddIiwaDifferentialIK(builder, plant, frame=None):
     time_step = plant.time_step()
     q0 = plant.GetPositions(plant.CreateDefaultContext())
     params.set_nominal_joint_position(q0) # nominal position for nullspace projection
-    params.set_end_effector_angular_speed_limit(np.pi/12)
+    params.set_end_effector_angular_speed_limit(5.0 * np.pi / 180.0)
     params.set_end_effector_translational_velocity_limits(
-        [-0.01, -0.01, -0.01], [0.01, 0.01, 0.01]
+        [-0.03, -0.03, -0.01], [0.03, 0.03, 0.01]
     )
     if plant.num_positions() == 3:  # planar iiwa
         iiwa14_velocity_limits = np.array([1.4, 1.3, 2.3])
@@ -47,8 +47,7 @@ def AddIiwaDifferentialIK(builder, plant, frame=None):
             [True, False, False, True, False, True]
         )
     else:
-        # iiwa14_velocity_limits = np.array([1.4, 1.4, 1.7, 1.3, 2.2, 2.3, 2.3])
-        iiwa14_velocity_limits = np.ones(7) * 0.17
+        iiwa14_velocity_limits = np.array([1.4, 1.4, 1.7, 1.3, 2.2, 2.3, 2.3])
         params.set_joint_velocity_limits(
             (-iiwa14_velocity_limits, iiwa14_velocity_limits)
         )
@@ -134,7 +133,7 @@ def teleop_diagram(meshcat, kuka_frame_name="iiwa_link_7"):
         meshcat,
         lower_limit=[-np.pi, -np.pi, -np.pi , -0.6, -0.6, 0.0],
         upper_limit=[ np.pi, np.pi, np.pi, 0.8, 0.9, 2.0],
-        step=[0.01, 0.01, 0.01, 0.01, 0.01, 0.01],
+        step=[5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0, 5.0 * np.pi / 180.0, 0.01, 0.01, 0.01],
     )
     
     teleop = builder.AddSystem(sliders)
@@ -151,6 +150,7 @@ def teleop_diagram(meshcat, kuka_frame_name="iiwa_link_7"):
     AddMultibodyTriad(controller_plant.GetFrameByName("calibration_frame"), scene_graph)
 
     builder.ExportOutput(kuka_ee_pose.get_output_port(), "teleop_pose")
+    builder.ExportOutput(hardware_block.GetOutputPort("iiwa_thanos.position_commanded"), "iiwa_commanded")
 
     diagram = builder.Build()
     

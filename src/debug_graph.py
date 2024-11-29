@@ -3,6 +3,7 @@ from graph.graph_gen import fps, pad, construct_edges_from_states
 import open3d as o3d
 import torch
 
+#NOTE: we will get 3d points from the object, then get 3d points from forward kinematics of robot as tool points
 if __name__ == '__main__':
     # load rgb
     # load pts3d
@@ -54,7 +55,7 @@ if __name__ == '__main__':
     # visualize edges on o3d lineset
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(obj_kp_fps_npy)
-    pcd.colors = o3d.utility.Vector3dVector(rgb_kp_fps / 255.0)
+    # pcd.colors = o3d.utility.Vector3dVector(rgb_kp_fps / 255.0)
     line_set = o3d.geometry.LineSet()
     edges = np.zeros((Rr.shape[0], 2))
     for i in range(Rr.shape[0]):
@@ -64,5 +65,4 @@ if __name__ == '__main__':
         edges[i, 1] = idx_Rs
     line_set.points = o3d.utility.Vector3dVector(obj_kp_fps_npy)
     line_set.lines = o3d.utility.Vector2iVector(edges)
-    
-    o3d.visualization.draw_geometries([line_set])
+    o3d.visualization.draw_geometries([pcd, line_set])
