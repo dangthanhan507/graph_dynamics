@@ -21,7 +21,7 @@ Demo:
           X_PF:
             base_frame: iiwa_thanos::iiwa_link_ee_kuka
             rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
-            translation: [0.0, 0.0, 0.13]
+            translation: [0.0, 0.0, 0.16]
 
   model_drivers:
     iiwa_thanos: !IiwaDriver
