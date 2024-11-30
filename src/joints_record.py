@@ -1,40 +1,48 @@
 import numpy as np
-import cv2
-from tqdm import tqdm
 from pydrake.geometry import StartMeshcat
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.framework import DiagramBuilder
 from hardware.teleop_utils import teleop_diagram, CameraTagPublisher
 from hardware.cameras import Cameras
 import os
+import argparse
 #NOTE: run this to record joint positions of robot for calibration
 
 if __name__ == '__main__':
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument("--camera", type=bool, default=False)
+    argparser.add_argument("--save_file", type=str, required=True)
+    args = argparser.parse_args()
+    
     meshcat = StartMeshcat()
     meshcat.ResetRenderMode()
-    cameras = Cameras(
-        WH=[640, 480],
-        capture_fps=15,
-        obs_fps=30,
-        n_obs_steps=2,
-        enable_color=True,
-        enable_depth=True,
-        process_depth=True
-    )
-    cameras.start(exposure_time=10)
+    
+    if args.camera:
+        cameras = Cameras(
+            WH=[640, 480],
+            capture_fps=15,
+            obs_fps=30,
+            n_obs_steps=2,
+            enable_color=True,
+            enable_depth=True,
+            process_depth=True
+        )
+        cameras.start(exposure_time=10)
+        
+        Ks = cameras.get_intrinsics()
+        camera_tag_pub = CameraTagPublisher(cameras, Ks, tag_width=0.056)
     
     builder = DiagramBuilder()
-    Ks = cameras.get_intrinsics()
-    camera_tag_pub = CameraTagPublisher(cameras, Ks, tag_width=0.056)
     teleop_diag, teleop_scene_graph = teleop_diagram(meshcat, kuka_frame_name="calibration_frame")
     
     teleop_block = builder.AddSystem(teleop_diag)
-    cam_block = builder.AddSystem(camera_tag_pub)
+    if args.camera:
+        cam_block = builder.AddSystem(camera_tag_pub)
     
-    builder.Connect(
-        teleop_block.GetOutputPort("teleop_pose"),
-        cam_block.GetInputPort("tag2kukabase")
-    )
+        builder.Connect(
+            teleop_block.GetOutputPort("teleop_pose"),
+            cam_block.GetInputPort("tag2kukabase")
+        )
     
     builder.ExportOutput(teleop_block.GetOutputPort("iiwa_commanded"), "iiwa_commanded")
     
@@ -65,6 +73,5 @@ if __name__ == '__main__':
     joints = np.array(joints)
     
     if len(joints) > 0:
-        os.makedirs('../calib_data/joints', exist_ok=True)
-        np.save('../calib_data/joints/joint_pos.npy', joints)
+        np.save(args.save_file, joints)
     print("Done")
