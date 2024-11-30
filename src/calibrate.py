@@ -3,7 +3,7 @@ from hardware.kuka import goto_joints_mp, curr_pose_mp
 import argparse
 import apriltag
 from tqdm import tqdm
-from hardware.cameras import Cameras
+from hardware.cameras import Cameras, save_extrinsics
 # given list of joints, follow each joint and take 10 seconds to go to each joint
 from collections import defaultdict
 import cv2
@@ -44,7 +44,7 @@ if __name__ == '__main__':
                     camera_datapoints[f'cam{i}'].append((pt2d, pt3d))
     
     Ks = cameras.get_intrinsics()
-    camera_extrinsics = np.zeros((cameras.n_fixed_cameras, 4, 4))
+    camera_json = dict()
     for i in range(cameras.n_fixed_cameras):
         pts2d = np.zeros((len(camera_datapoints[f'cam{i}']), 2))
         pts3d = np.zeros((len(camera_datapoints[f'cam{i}']), 3))
@@ -59,11 +59,7 @@ if __name__ == '__main__':
         H = np.eye(4)
         H[:3, :3] = rotm
         H[:3, 3] = tvec.flatten()
-        camera_extrinsics[i] = H
+        camera_json[f'cam{i}'] = H.tolist()
         print(np.linalg.inv(H))
-        
-    import os
-    os.makedirs("../calib_data/extrinsics", exist_ok=True)
-    np.save("../calib_data/extrinsics/extrinsics.npy", camera_extrinsics)
+    save_extrinsics(camera_json, '../config/camera_extrinsics_robust.json')
     print("Done")
-    

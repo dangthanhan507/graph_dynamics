@@ -91,7 +91,7 @@ if __name__ == '__main__':
         enable_color=True,
         enable_depth=True,
         process_depth=True,
-        extrinsic_path='../config/camera_extrinsics.json'
+        extrinsic_path='../config/camera_extrinsics_robust.json'
     )
     cameras.start(exposure_time=10)
     
