@@ -88,7 +88,7 @@ def create_hardware_diagram_plant(scenario_filepath, position_only=True, meshcat
     hardware_diagram = hardware_builder.Build()
     return hardware_diagram, hardware_plant, scene_graph_of_plant
 
-def goto_joints(joint_thanos, endtime = 10.0, joint_speed = None):
+def goto_joints(joint_thanos, endtime = 10.0, joint_speed = None, pad_time = 2.0):
     root_builder = DiagramBuilder()
     hardware_diagram, hardware_plant, _ = create_hardware_diagram_plant(scenario_filepath="../config/med.yaml",  position_only=True)
     
@@ -105,7 +105,6 @@ def goto_joints(joint_thanos, endtime = 10.0, joint_speed = None):
         endtime_from_speed = max_dq / joint_speed # get time to move at speed
         endtime = max(endtime, endtime_from_speed)
         endtime = endtime_from_speed
-        print(endtime_from_speed)
     
     ts = np.array([0.0, endtime])
     qs = np.array([curr_q, joint_thanos])
@@ -119,11 +118,11 @@ def goto_joints(joint_thanos, endtime = 10.0, joint_speed = None):
     # run simulation
     simulator = Simulator(root_diagram)
     simulator.set_target_realtime_rate(1.0)
-    simulator.AdvanceTo(endtime + 2.0)
+    simulator.AdvanceTo(endtime + pad_time)
     
-def goto_joints_mp(joint_thanos, endtime = 10.0, joint_speed = None):
-    fn = lambda joint_thanos, endtime, joint_speed: goto_joints(joint_thanos, endtime, joint_speed)
-    proc = mp.Process(target=fn, args=(joint_thanos, endtime, joint_speed))
+def goto_joints_mp(joint_thanos, endtime = 10.0, joint_speed = None, pad_time = 2.0):
+    fn = lambda joint_thanos, endtime, joint_speed, pad_time: goto_joints(joint_thanos, endtime, joint_speed, pad_time)
+    proc = mp.Process(target=fn, args=(joint_thanos, endtime, joint_speed, pad_time))
     proc.start()
     proc.join()
     
