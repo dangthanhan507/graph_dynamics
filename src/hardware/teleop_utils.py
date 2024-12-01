@@ -188,8 +188,8 @@ class GamepadDiffIK(LeafSystem):
 
         V_WE_desired = np.zeros((6,))
         # TODO(russt): Properly implement rpydot to angular velocity.
-        V_WE_desired[0] = -0.2 * right[0]  # Right stick x => wx
-        V_WE_desired[1] = 0.2 * right[1]  # Right stick y => wy
+        V_WE_desired[0] = 0.2 * right[1]  # Right stick x => wx
+        V_WE_desired[1] = 0.2 * right[0]  # Right stick y => wy
         if gamepad.button_values[4] > 0.2 or gamepad.button_values[5] > 0.2:
             # l1/r1 => wz
             V_WE_desired[2] = 0.2 * (
