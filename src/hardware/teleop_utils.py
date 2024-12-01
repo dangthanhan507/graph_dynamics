@@ -23,7 +23,7 @@ import cv2
 from collections import defaultdict
 
 ## --- teleop kuka drake API ---
-def AddIiwaDifferentialIK(builder, plant, frame=None):
+def AddIiwaDifferentialIK(builder, plant, frame=None, trans_vel_limits = 0.03):
     params = DifferentialInverseKinematicsParameters(
         plant.num_positions(), plant.num_velocities()
     )
@@ -32,7 +32,7 @@ def AddIiwaDifferentialIK(builder, plant, frame=None):
     params.set_nominal_joint_position(q0) # nominal position for nullspace projection
     params.set_end_effector_angular_speed_limit(5.0 * np.pi / 180.0)
     params.set_end_effector_translational_velocity_limits(
-        [-0.03, -0.03, -0.01], [0.03, 0.03, 0.01]
+        [-trans_vel_limits, -trans_vel_limits, -trans_vel_limits], [trans_vel_limits, trans_vel_limits, trans_vel_limits]
     )
     if plant.num_positions() == 3:  # planar iiwa
         iiwa14_velocity_limits = np.array([1.4, 1.3, 2.3])
@@ -83,7 +83,7 @@ class HardwareKukaPose(LeafSystem):
         output.set_value(pose)
 
 
-def teleop_diagram(meshcat, kuka_frame_name="iiwa_link_7"):
+def teleop_diagram(meshcat, kuka_frame_name="iiwa_link_7", vel_limits = 0.03):
     meshcat.ResetRenderMode()
     builder = DiagramBuilder()
     
@@ -95,6 +95,7 @@ def teleop_diagram(meshcat, kuka_frame_name="iiwa_link_7"):
         builder,
         controller_plant,
         frame=controller_plant.GetFrameByName(kuka_frame_name),
+        trans_vel_limits=vel_limits
     )
     builder.Connect(
         differential_ik.get_output_port(),

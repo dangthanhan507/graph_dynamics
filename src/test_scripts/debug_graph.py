@@ -1,3 +1,5 @@
+import sys
+sys.path.append('./')
 import numpy as np
 from graph.graph_gen import fps, pad, construct_edges_from_states
 import open3d as o3d

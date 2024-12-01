@@ -66,7 +66,7 @@ if __name__ == '__main__':
             joint_pos = diagram.GetOutputPort("iiwa_commanded").Eval(diagram_context)
             print(joint_pos)
             joints.append(joint_pos)
-            print(f"Recorded joint position: {joint_pos}.")
+            # print(f"Recorded joint position: {joint_pos}.")
     meshcat.DeleteButton("Stop Simulation")
     meshcat.DeleteButton("Record Joint")
     

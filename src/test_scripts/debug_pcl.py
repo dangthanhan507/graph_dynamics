@@ -1,3 +1,5 @@
+import sys
+sys.path.append('./')
 import numpy as np
 from pydrake.all import (
     RigidTransform,
@@ -13,7 +15,7 @@ from pydrake.all import (
     Value
 )
 import time
-from hardware.cameras import Cameras, depth2pcd, load_extrinsics
+from hardware.cameras import Cameras, depth2pcd
 from perception.perception3d_module import Perception3DModule
 #NOTE: test getting point clouds from realsense camera
 
@@ -82,8 +84,8 @@ class CamerasToPointCloud(LeafSystem):
         pcl = PointCloud(new_size = pts3d.shape[0], fields= Fields(BaseField.kXYZs | BaseField.kRGBs))
         pcl.mutable_rgbs()[:] = rgb.T
         pcl.mutable_xyzs()[:] = pts3d.T
-        
-        output.set_value(pcl.VoxelizedDownSample(voxel_size=1e-3, parallelize=True))
+        pcl = pcl.VoxelizedDownSample(voxel_size=1e-3, parallelize=True)
+        output.set_value(pcl)
         # delta = time.time() - start
         # print(delta)
         

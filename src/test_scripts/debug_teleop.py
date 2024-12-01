@@ -1,3 +1,5 @@
+import sys
+sys.path.append('./')
 import numpy as np
 import cv2
 from tqdm import tqdm
@@ -24,7 +26,7 @@ if __name__ == '__main__':
     builder = DiagramBuilder()
     Ks = cameras.get_intrinsics()
     camera_tag_pub = CameraTagPublisher(cameras, Ks, tag_width=0.056)
-    teleop_diag, teleop_scene_graph = teleop_diagram(meshcat, kuka_frame_name="calibration_frame")
+    teleop_diag, teleop_scene_graph = teleop_diagram(meshcat, kuka_frame_name="calibration_frame", vel_limits=0.05)
     
     teleop_block = builder.AddSystem(teleop_diag)
     cam_block = builder.AddSystem(camera_tag_pub)

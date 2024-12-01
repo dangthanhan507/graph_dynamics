@@ -1,3 +1,6 @@
+import sys
+sys.path.append('./')
+
 import numpy as np
 from perception.perception3d_module import Perception3DModule
 import cv2

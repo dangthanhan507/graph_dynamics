@@ -1,4 +1,5 @@
-import numpy as np
+import sys
+sys.path.append('./')
 from hardware.cameras import Cameras
 import cv2
 

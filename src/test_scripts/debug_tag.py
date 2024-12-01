@@ -1,6 +1,7 @@
+import sys
+sys.path.append('./')
 import numpy as np
 from hardware.cameras import Cameras
-from hardware.kuka import Kuka
 import cv2
 import apriltag
 

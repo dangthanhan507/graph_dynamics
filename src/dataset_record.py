@@ -41,6 +41,7 @@ def write_obs(save_folder):
                 cv2.imwrite(f'{save_folder}/camera_{i}/color_{ "{:04d}".format(index) }.png', recent_obs[f'color_{i}'][-1])
                 cv2.imwrite(f'{save_folder}/camera_{i}/depth_{ "{:04d}".format(index) }.png', recent_obs[f'depth_{i}'][-1])
             index += 1
+    print("Thread done!")
 class Recorder(LeafSystem):
     def __init__(self, save_folder: str):
         LeafSystem.__init__(self)
@@ -67,9 +68,10 @@ class Recorder(LeafSystem):
         obs_queue.put(5)
         self.joints_dict.append(joints)
         
-def record_data(joints: np.ndarray, joint_speed = 4.0 * np.pi / 180.0):
+def record_data(save_folder: str, joints: np.ndarray, joint_speed = 4.0 * np.pi / 180.0):
     # NOTE: check if initial joint position is the same as current joint position
     j0 = joints[0, :]
+    print(j0)
     goto_joints_mp(j0, endtime=30.0, joint_speed= 2.0 * np.pi / 180.0, pad_time=2.0)
     input("Press Enter to continue...")
     
@@ -78,7 +80,7 @@ def record_data(joints: np.ndarray, joint_speed = 4.0 * np.pi / 180.0):
     hardware_diagram, controller_plant, scene_graph = create_hardware_diagram_plant(scenario_filepath='../config/calib_med.yaml', position_only=True, meshcat = None, package_file='../package.xml')
     
     hardware_block = builder.AddSystem(hardware_diagram)
-    recorder = Recorder('../dataset/rigid/episode_0')
+    recorder = Recorder(save_folder)
     recorder.start()
     
     recorder_block = builder.AddSystem(recorder)
@@ -103,16 +105,20 @@ def record_data(joints: np.ndarray, joint_speed = 4.0 * np.pi / 180.0):
     
     simulator.AdvanceTo(40.0) #hardcap at 40 seconds
     
+    #save joints
+    np.save(f'{recorder.save_folder}/joints.npy', np.array(recorder.joints_dict))
+    print("Recording done!")
     global obs_queue
     obs_queue.put(None)
-    recorder.end()
+    exit()
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--load_file", type=str, required=True)
+    argparser.add_argument("--save_folder", type=str, required=True)
     args = argparser.parse_args()
     
     joints = np.load(args.load_file)
     
-    record_data(joints)
-    print("Recording done!")
+    record_data(args.save_folder, joints)
+    
