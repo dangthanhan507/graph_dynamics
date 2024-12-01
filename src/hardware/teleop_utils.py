@@ -13,7 +13,11 @@ from pydrake.all import (
     MultibodyPlant,
     Multiplexer,
     DifferentialInverseKinematicsIntegrator,
-    ConstantValueSource
+    ConstantValueSource,
+    DoDifferentialInverseKinematics,
+    DifferentialInverseKinematicsStatus,
+    EventStatus,
+    Meshcat
 )
 from manipulation.scenarios import AddMultibodyTriad
 
@@ -21,6 +25,50 @@ from hardware.cameras import Cameras
 import apriltag
 import cv2
 from collections import defaultdict
+
+#YOINKED from Russ Tedrake's Newest Manipulation code
+class StopButton(LeafSystem):
+    """Adds a button named `Stop Simulation` to the meshcat GUI, and registers
+    the `Escape` key to press it. Pressing this button will terminate the
+    simulation.
+
+    Args:
+        meshcat: The meshcat instance in which to register the button.
+        check_interval: The period at which to check for button presses.
+    """
+
+    def __init__(self, meshcat: Meshcat, check_interval: float = 0.1):
+        LeafSystem.__init__(self)
+        self._meshcat = meshcat
+        self._button = "Stop Simulation"
+
+        self.DeclareDiscreteState([0])  # button click count
+        self.DeclareInitializationDiscreteUpdateEvent(self._Initialize)
+        self.DeclarePeriodicDiscreteUpdateEvent(check_interval, 0, self._CheckButton)
+
+        # Create the button now (rather than at initialization) so that the
+        # CheckButton method will work even if Initialize has never been
+        # called.
+        meshcat.AddButton(self._button, "Escape")
+
+    def __del__(self):
+        # TODO(russt): Provide a nicer way to check if the button is currently
+        # registered.
+        try:
+            self._meshcat.DeleteButton(self._button)
+        except:
+            pass
+
+    def _Initialize(self, context, discrete_state):
+        print("Press Escape to stop the simulation")
+        discrete_state.set_value([self._meshcat.GetButtonClicks(self._button)])
+
+    def _CheckButton(self, context, discrete_state):
+        clicks_at_initialization = context.get_discrete_state().value()[0]
+        if self._meshcat.GetButtonClicks(self._button) > clicks_at_initialization:
+            self._meshcat.DeleteButton(self._button)
+            return EventStatus.ReachedTermination(self, "Termination requested by user")
+        return EventStatus.DidNothing()
 
 ## --- teleop kuka drake API ---
 def AddIiwaDifferentialIK(builder, plant, frame=None, trans_vel_limits = 0.03):
@@ -30,7 +78,7 @@ def AddIiwaDifferentialIK(builder, plant, frame=None, trans_vel_limits = 0.03):
     time_step = plant.time_step()
     q0 = plant.GetPositions(plant.CreateDefaultContext())
     params.set_nominal_joint_position(q0) # nominal position for nullspace projection
-    params.set_end_effector_angular_speed_limit(5.0 * np.pi / 180.0)
+    params.set_end_effector_angular_speed_limit(1.0 * np.pi / 180.0)
     params.set_end_effector_translational_velocity_limits(
         [-trans_vel_limits, -trans_vel_limits, -trans_vel_limits], [trans_vel_limits, trans_vel_limits, trans_vel_limits]
     )
@@ -65,6 +113,162 @@ def AddIiwaDifferentialIK(builder, plant, frame=None, trans_vel_limits = 0.03):
     )
     return differential_ik
 
+class GamepadDiffIK(LeafSystem):
+    def __init__(self, meshcat, plant, frame_E, velocity_limit=0.03):
+        """
+        Args:
+            meshcat: A Meshcat instance.
+            plant: A multibody plant (to use for differential ik). It is
+              probably the plant used for control, not for simulation (it should only contain the robot, not the objects).
+            frame: A frame in to control `plant`.
+        """
+        LeafSystem.__init__(self)
+        
+        self.velocity_limit = velocity_limit
+        self.DeclareVectorInputPort("robot_state", plant.num_multibody_states())
+        self.DeclareInitializationDiscreteUpdateEvent(self.Initialize)
+
+        port = self.DeclareVectorOutputPort(
+            "iiwa.position", plant.num_positions(), self.OutputIiwaPosition
+        )
+        # The gamepad has undeclared state.  For now, we accept it,
+        # and simply disable caching on the output port.
+        port.disable_caching_by_default()
+
+
+        self.DeclareDiscreteState(plant.num_positions())  # iiwa position
+        self._time_step = plant.time_step()
+        self.DeclarePeriodicDiscreteUpdateEvent(self._time_step, 0, self.Integrate)
+
+        self._meshcat = meshcat
+        self._plant = plant
+        self._plant_context = plant.CreateDefaultContext()
+
+        if frame_E is None:
+            frame_E = plant.GetFrameByName("body")  # wsg gripper frame
+        self._frame_E = frame_E
+
+        params = DifferentialInverseKinematicsParameters(
+            plant.num_positions(), plant.num_velocities()
+        )
+        q0 = plant.GetPositions(plant.CreateDefaultContext())
+        params.set_time_step(plant.time_step())
+        params.set_nominal_joint_position(q0)
+        params.set_end_effector_angular_speed_limit(5.0 * np.pi / 180.0)
+        params.set_end_effector_translational_velocity_limits([-self.velocity_limit, -self.velocity_limit, -self.velocity_limit], [self.velocity_limit, self.velocity_limit, self.velocity_limit])
+        iiwa14_velocity_limits = np.array([1.4, 1.4, 1.7, 1.3, 2.2, 2.3, 2.3])
+        params.set_joint_velocity_limits(
+            (-iiwa14_velocity_limits, iiwa14_velocity_limits)
+        )
+        params.set_joint_centering_gain(0 * np.eye(7))
+
+        self._diff_ik_params = params
+
+    def Initialize(self, context, discrete_state):
+        discrete_state.set_value(
+            0,
+            self.get_input_port().Eval(context)[: self._plant.num_positions()],
+        )
+
+    def Integrate(self, context, discrete_state):
+        gamepad = self._meshcat.GetGamepad()
+
+        # https://beej.us/blog/data/javascript-gamepad/
+        def CreateStickDeadzone(x, y):
+            stick = np.array([x, y])
+            deadzone = 0.3
+            m = np.linalg.norm(stick)
+            if m < deadzone:
+                return np.array([0, 0])
+            over = (m - deadzone) / (1 - deadzone)
+            return stick * over / m
+
+        left = CreateStickDeadzone(gamepad.axes[0], gamepad.axes[1])
+        right = CreateStickDeadzone(gamepad.axes[2], gamepad.axes[3])
+
+        V_WE_desired = np.zeros((6,))
+        # TODO(russt): Properly implement rpydot to angular velocity.
+        V_WE_desired[0] = -0.2 * right[0]  # Right stick x => wx
+        V_WE_desired[1] = 0.2 * right[1]  # Right stick y => wy
+        if gamepad.button_values[4] > 0.2 or gamepad.button_values[5] > 0.2:
+            # l1/r1 => wz
+            V_WE_desired[2] = 0.2 * (
+                gamepad.button_values[5] - gamepad.button_values[4]
+            )   
+        V_WE_desired[3] = self.velocity_limit * left[0]  # Left stick x => vx
+        V_WE_desired[4] = -self.velocity_limit * left[1]  # Left stick y => vy
+        if gamepad.button_values[6] > 0.2 or gamepad.button_values[7] > 0.2:
+            # l2/r2 => vx
+            V_WE_desired[5] = self.velocity_limit * (
+                gamepad.button_values[7] - gamepad.button_values[6]
+            )
+
+        q = np.copy(context.get_discrete_state(0).get_value())
+        self._plant.SetPositions(self._plant_context, q)
+        result = DoDifferentialInverseKinematics(
+            self._plant,
+            self._plant_context,
+            V_WE_desired,
+            self._frame_E,
+            self._diff_ik_params,
+        )
+        if result.status != DifferentialInverseKinematicsStatus.kNoSolutionFound:
+            discrete_state.set_value(0, q + self._time_step * result.joint_velocities)
+
+        # TODO(russt): This doesn't actually work yet, since the event status
+        # is being discarded in the pybind later.
+        if gamepad.button_values[0] > 0.5:
+            return EventStatus.ReachedTermination(self, "x button pressed")
+
+        return EventStatus.Succeeded()
+
+    def OutputIiwaPosition(self, context, output):
+        output.set_value(context.get_discrete_state(0).get_value())
+
+def teleop_gamepad_diagram(meshcat, kuka_frame_name="iiwa_link_7", vel_limits = 0.03, scenario_filepath='../config/med.yaml'):
+    input("Press Enter when you have the gamepad connected and have pressed buttons while focused on Meshcat window.")
+    meshcat.ResetRenderMode()
+    builder = DiagramBuilder()
+    
+    # add hardware blocks
+    hardware_diagram, controller_plant, scene_graph = create_hardware_diagram_plant(scenario_filepath=scenario_filepath, position_only=True, meshcat = meshcat, package_file='../package.xml')
+    hardware_block = builder.AddSystem(hardware_diagram)
+    kuka_state_block = builder.AddSystem(Multiplexer([7,7]))
+    
+    gamepad_block = builder.AddSystem(GamepadDiffIK(meshcat, controller_plant, controller_plant.GetFrameByName(kuka_frame_name), velocity_limit=vel_limits))
+    
+    stop_button = builder.AddSystem(StopButton(meshcat))
+    
+    builder.Connect(
+        gamepad_block.GetOutputPort("iiwa.position"),
+        hardware_block.GetInputPort("iiwa_thanos.position")
+    )
+    
+    builder.Connect(
+        gamepad_block.GetOutputPort("iiwa.position"),
+        hardware_block.GetInputPort("iiwa_thanos_meshcat.position")
+    )
+    
+    builder.Connect(
+        hardware_block.GetOutputPort("iiwa_thanos.position_measured"),
+        kuka_state_block.get_input_port(0)
+    )
+    builder.Connect(
+        hardware_block.GetOutputPort("iiwa_thanos.velocity_estimated"),
+        kuka_state_block.get_input_port(1)
+    )
+    
+    builder.Connect(
+        kuka_state_block.get_output_port(),
+        gamepad_block.GetInputPort("robot_state")
+    )
+    builder.ExportOutput(hardware_block.GetOutputPort("iiwa_thanos.position_commanded"), "iiwa_commanded")
+    AddMultibodyTriad(controller_plant.GetFrameByName(kuka_frame_name), scene_graph)
+    
+    diagram = builder.Build()
+    
+    return diagram, scene_graph
+
 class HardwareKukaPose(LeafSystem):
     def __init__(self, hardware_plant: MultibodyPlant, kuka_frame_name = 'iiwa_link_7'):
         LeafSystem.__init__(self)
@@ -83,11 +287,11 @@ class HardwareKukaPose(LeafSystem):
         output.set_value(pose)
 
 
-def teleop_diagram(meshcat, kuka_frame_name="iiwa_link_7", vel_limits = 0.03):
+def teleop_diagram(meshcat, kuka_frame_name="iiwa_link_7", vel_limits = 0.03, scenario_filepath='../config/calib_med.yaml'):
     meshcat.ResetRenderMode()
     builder = DiagramBuilder()
     
-    hardware_diagram, controller_plant, scene_graph = create_hardware_diagram_plant(scenario_filepath='../config/calib_med.yaml', position_only=True, meshcat = meshcat, package_file='../package.xml')
+    hardware_diagram, controller_plant, scene_graph = create_hardware_diagram_plant(scenario_filepath=scenario_filepath, position_only=True, meshcat = meshcat, package_file='../package.xml')
     
     hardware_block = builder.AddSystem(hardware_diagram)
     # Set up differential inverse kinematics.
