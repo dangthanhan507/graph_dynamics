@@ -6,6 +6,7 @@ from pydrake.systems.analysis import Simulator
 from pydrake.systems.framework import DiagramBuilder
 from hardware.teleop_utils import teleop_gamepad_diagram
 from hardware.cameras import Cameras
+from hardware.kuka import goto_joints_mp
 from pydrake.all import (
     LeafSystem
 )
@@ -74,6 +75,9 @@ if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--save_folder", type=str, required=True)
     args = argparser.parse_args()
+    
+    home_joint = np.array([ 1.63465136,  0.65955046,  0.07977137, -1.43249199, -0.05626456,  1.05177435, 0.24214364])
+    goto_joints_mp(home_joint, endtime=10.0, joint_speed = 4.0 * np.pi / 180.0, pad_time = 2.0)
     
     meshcat = StartMeshcat()
     meshcat.ResetRenderMode()
