@@ -262,7 +262,7 @@ def teleop_gamepad_diagram(meshcat, kuka_frame_name="iiwa_link_7", vel_limits = 
         kuka_state_block.get_output_port(),
         gamepad_block.GetInputPort("robot_state")
     )
-    builder.ExportOutput(hardware_block.GetOutputPort("iiwa_thanos.position_commanded"), "iiwa_commanded")
+    builder.ExportOutput(hardware_block.GetOutputPort("iiwa_thanos.position_measured"), "iiwa_measured")
     AddMultibodyTriad(controller_plant.GetFrameByName(kuka_frame_name), scene_graph)
     
     diagram = builder.Build()
