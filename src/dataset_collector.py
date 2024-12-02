@@ -42,7 +42,7 @@ def write_obs(save_folder):
                 break
             for i in range(cameras.n_fixed_cameras):
                 cv2.imwrite(f'{save_folder}/camera_{i}/color_{ "{:04d}".format(index) }.png', recent_obs[f'color_{i}'][-1])
-                cv2.imwrite(f'{save_folder}/camera_{i}/depth_{ "{:04d}".format(index) }.png', recent_obs[f'depth_{i}'][-1])
+                cv2.imwrite(f'{save_folder}/camera_{i}/depth_{ "{:04d}".format(index) }.png', (recent_obs[f'depth_{i}'][-1]* 1000.0).astype(np.uint16) )
             index += 1
     print("Thread done!")
 class Recorder(LeafSystem):

@@ -2,7 +2,7 @@ import sys
 sys.path.append('./')
 from hardware.cameras import Cameras
 import cv2
-
+import numpy as np
 if __name__ == '__main__':    
     exposure_time = 10
     cam = Cameras(
@@ -40,6 +40,13 @@ if __name__ == '__main__':
         
         cv2.imshow('rgb', fullrgb)
         cv2.imshow('depth', fulldepth)
+        
+
+        # save depth
+        # print((fulldepth*1000.0).max())
+        # cv2.imwrite('depth.png', (fulldepth * 1000.0).astype(np.uint16))
+        # depth = cv2.imread('depth.png', cv2.IMREAD_ANYDEPTH)
+        # print(depth.max()) # NOTE: this is the same as fulldepth.max()
         if cv2.waitKey(1) == ord('q'):
             break
     cv2.destroyAllWindows()

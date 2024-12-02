@@ -7,7 +7,6 @@ from pydrake.geometry import StartMeshcat
 from pydrake.systems.analysis import Simulator
 from pydrake.systems.framework import DiagramBuilder
 from hardware.teleop_utils import teleop_gamepad_diagram
-from hardware.kuka import goto_joints_mp
         
 if __name__ == '__main__':
     
