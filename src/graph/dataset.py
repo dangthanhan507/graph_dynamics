@@ -54,7 +54,7 @@ class TrackedDatasetBaseline(Dataset):
             NOTE: in order to reconcile dataset indexing, this is our index scheme:
             ========================================================================
             scheme:
-            | frames - 2 in episode 0 | frames - 2 in episode 1 | frames - 2 in episode 2 | ... | frames - 2 in episode D |
+            | (frames in episode 0) - state_history | (frames in episode 1) - state_history | (frames in episode 2) - state_history | ... | (frames in episode D) - state_history |
         '''
         self.dataset_folder = dataset_folder
         self.state_history = state_history
@@ -105,30 +105,30 @@ class TrackedDatasetBaseline(Dataset):
             kypts[0] -> kypts[state_history - 1] is input data
             label is kypts[state_history]
         '''
-        particles = torch.concatenate([keypoints, ee_positions[:,None,:]], dim=1) # (state_history + 1, num_particles, 3)
+        vertices = torch.concatenate([keypoints, ee_positions[:,None,:]], dim=1) # (state_history + 1, num_vertices, 3)
         
-        object_mask = torch.zeros((particles.shape[1]), dtype=bool)
+        object_mask = torch.zeros((vertices.shape[1]), dtype=bool)
         object_mask[:-1] = True
         
-        tool_mask = torch.zeros((particles.shape[1]), dtype=bool)
+        tool_mask = torch.zeros((vertices.shape[1]), dtype=bool)
         tool_mask[-1] = True
         
-        particles_history = particles[:-1, :, :]
-        future_particle   = particles[-1,  :, :][None, :, :]
+        vertices_history = vertices[:-1, :, :]
+        future_vertices   = vertices[-1,  :, :][None, :, :]
         
         
         # construct graph from last particle in horizon
-        Rr, Rs = construct_edges_from_states(particles_history[-1], self.adjacency_threshold, object_mask, tool_mask, topk=10)
+        Rr, Rs = construct_edges_from_states(vertices_history[-1], self.adjacency_threshold, object_mask, tool_mask, topk=10)
         
         # edge_ij = (node_sender, node_receiver) = (node_i, node_j)
         # points from node_i to node_j
-        # Rr (n_edge, num_particles) one-hot for which particle is receiver node for each edge
-        # Rs (n_edge, num_particles) one-hot for which particle is sender node for each edge
+        # Rr (n_edge, num_vertices) one-hot for which vertices is receiver node for each edge
+        # Rs (n_edge, num_vertices) one-hot for which vertices is sender node for each edge
         
         # attrs or category vector between tool and object
-        onehot_particles = torch.zeros((particles.shape[1], 2))
-        onehot_particles[-1, 1]  = 1 # label last particle as tool
-        onehot_particles[:-1, 0] = 1 # label rest of particles as object
+        onehot_vertices = torch.zeros((vertices.shape[1], 2))
+        onehot_vertices[-1, 1]  = 1 # label last vertices as tool
+        onehot_vertices[:-1, 0] = 1 # label rest of vertices as object
         
         # category vector on whether edge is object-object or object-tool relation
         # ASSUMPTION: there are no tool-tool relations, anything related to tool is object-tool relation
@@ -143,12 +143,12 @@ class TrackedDatasetBaseline(Dataset):
         onehot_edges[edge_mask, 1] = 1
         
         graph_data = {
-            'particles_history': particles_history, # (state_history, num_particles, 3)
-            'future_particle': future_particle, # (1, num_particles, 3)
-            'onehot_particles': onehot_particles, # (num_particles, 2)
+            'vertices_history': vertices_history, # (state_history, num_vertices, 3)
+            'onehot_vertices': onehot_vertices, # (num_vertices, 2)
             'onehot_edges': onehot_edges, # (n_edge, 2)
-            'Rr': Rr, # (n_edge, num_particles)
-            'Rs': Rs, # (n_edge, num_particles)
+            'Rr': Rr, # (n_edge, num_vertices)
+            'Rs': Rs, # (n_edge, num_vertices)
+            'future_particle': future_vertices, # (1, num_vertices, 3) NOTE: label
         }
         return graph_data
         
@@ -157,8 +157,6 @@ class TrackedDatasetBaseline(Dataset):
     
     
 if __name__ == '__main__':
-    # pts = pickle.load(open('../dataset/rigid_d3/episode_0/obj_kypts/000001.pkl', 'rb'))[0] # numpy array
-    
     dataset = TrackedDatasetBaseline('../dataset/rigid_d3/', state_history=15)
     
     print(dataset.episode_end_index)
