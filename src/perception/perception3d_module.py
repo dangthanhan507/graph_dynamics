@@ -3,7 +3,6 @@ import argparse
 import numpy as np
 import torch
 import open3d as o3d
-import cv2
 from PIL import Image
 from hardware.cameras import Cameras
 # from real_world.utils.pcd_utils import visualize_o3d, depth2fgpcd

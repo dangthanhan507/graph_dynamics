@@ -161,3 +161,15 @@ def curr_pose_mp(scenario_file = "../config/med.yaml", frame_name="iiwa_link_7")
     proc.start()
     proc.join()
     return q.get()
+
+def joints_to_position(joints, scenario_file='../config/med.yaml', frame_name='iiwa_link_7'):
+    _, hardware_plant, _ = create_hardware_diagram_plant(scenario_filepath=scenario_file,  position_only=True)
+    
+    plant_context = hardware_plant.CreateDefaultContext()
+    # joints is in (N, 7)
+    positions = []
+    for i in range(joints.shape[0]):
+        hardware_plant.SetPositions(plant_context, joints[i])
+        pose = hardware_plant.GetFrameByName(frame_name).CalcPoseInWorld(plant_context)
+        positions.append(pose.translation())
+    return np.array(positions)

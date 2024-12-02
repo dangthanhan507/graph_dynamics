@@ -4,6 +4,7 @@ import argparse
 import json
 from tqdm import tqdm
 import cv2
+import shutil
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
@@ -56,4 +57,5 @@ if __name__ == '__main__':
                 depth = cv2.imread(os.path.join(data_folder, filename), cv2.IMREAD_ANYDEPTH).astype(np.uint16)
                 cv2.imwrite(os.path.join(out_folder,f'depth/{number}.png'), depth)
     
-    pass
+    # save joints
+    shutil.copy(os.path.join(args.data_folder, args.episode_name, 'joints.npy'), os.path.join(args.output_folder, args.episode_name, 'joints.npy'))

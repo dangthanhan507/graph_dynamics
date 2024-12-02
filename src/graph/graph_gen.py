@@ -1,7 +1,6 @@
 import numpy as np
 import copy
 import torch
-
 from dgl.geometry import farthest_point_sampler
 
 def fps_rad_idx(pcd, radius):
