@@ -9,16 +9,16 @@ from graph.visual_dataset import VisualizeEpisode
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
-    argparser.add_argument('--model_path', type=str, default='chkpt/model.pth')
+    argparser.add_argument('--model_path', type=str, default='chkpt/official_model.pth')
     args = argparser.parse_args()
     
     state_history = 15
-    dataset = TrackedDatasetBaseline('../dataset/rigid_d3_official_single/', 
+    dataset = TrackedDatasetBaseline('../dataset/rigid_d3_official_jayjun/',
                                      state_history=state_history,
                                      num_tracked_pts=100,
                                      topk_edge_threshold=10
-    )
-    visual_dataset = VisualizeEpisode('../dataset/rigid_d3_official_single/episode_0')
+    ) 
+    visual_dataset = VisualizeEpisode('../dataset/rigid_d3_official_jayjun/episode_0')
     
     
     gnn = GNN_baseline(state_history_size=state_history,
@@ -49,7 +49,7 @@ if __name__ == '__main__':
             
             workspace_bbox = np.array([[-0.3, 0.3],
                                        [0.3, 1.0],
-                                       [-0.1, 0.5]])
+                                       [-0.1, 1.0]])
             mask = (pcd[:,0] > workspace_bbox[0,0]) & (pcd[:,0] < workspace_bbox[0,1]) & \
                      (pcd[:,1] > workspace_bbox[1,0]) & (pcd[:,1] < workspace_bbox[1,1]) & \
                         (pcd[:,2] > workspace_bbox[2,0]) & (pcd[:,2] < workspace_bbox[2,1])
@@ -95,10 +95,10 @@ if __name__ == '__main__':
                 vis.update_geometry(label_spheres[i])
                 
             view_control = vis.get_view_control()
-            view_control.set_front([1.0, 1.0, 1.0])
-            view_control.set_lookat([0., 0.65, 0])
-            view_control.set_up([0, 0, 1])
-            view_control.set_zoom(0.400000000000008) 
+            # view_control.set_front([1.0, 1.0, 1.0])
+            # view_control.set_lookat([0., 0.65, 0])
+            # view_control.set_up([0, 0, 1])
+            # view_control.set_zoom(0.400000000000008) 
             vis.poll_events()
             vis.update_renderer()
             vis.run()

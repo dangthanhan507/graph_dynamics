@@ -32,11 +32,11 @@ if __name__ == '__main__':
     args = argparser.parse_args()
     set_seed(42)
     batch_size = 256
-    total_epochs = 20
+    total_epochs = 100
     state_history = 15
     ckpt_every_k_epochs = 10
     #load dataloader
-    dataset = TrackedDatasetBaseline('../dataset/rigid_d3_official_single/', 
+    dataset = TrackedDatasetBaseline('../dataset/rigid_d3_official/', 
                                      state_history=state_history,
                                      num_tracked_pts=100,
                                      topk_edge_threshold=10
@@ -65,7 +65,10 @@ if __name__ == '__main__':
                        num_features_decode=512,
                        message_passing_steps=3).to('cuda')
     gnn.train()
-    optimizer = torch.optim.Adam(gnn.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(gnn.parameters(), lr=1e-5)
+    
+    train_losses = []
+    validation_losses = []
     for epoch in range(total_epochs):
         print("Epoch:", epoch)
         for data,label in tqdm(train_dataloader):
@@ -106,6 +109,13 @@ if __name__ == '__main__':
                 del data, label
         print("Train Loss:", train_loss / num_loops_train)
         print("Validation Loss:", validation_loss / num_loop_val)
+        train_loss_avg = train_loss / num_loops_train
+        validation_loss_avg = validation_loss / num_loop_val
+        train_losses.append(train_loss_avg.cpu().numpy())
+        validation_losses.append(validation_loss_avg.cpu().numpy())
+    
+    np.save(os.path.join(args.chkpt_path,'train_losses.npy'), np.array(train_losses))
+    np.save(os.path.join(args.chkpt_path,'validation_losses.npy'), np.array(validation_losses))
     
     # save to pth
     os.makedirs(args.chkpt_path, exist_ok=True)
