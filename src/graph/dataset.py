@@ -164,7 +164,6 @@ class TrackedDatasetBaseline(Dataset):
     def __len__(self):
         return self.length_dataset
     
-    
 if __name__ == '__main__':
     dataset = TrackedDatasetBaseline('../dataset/rigid_d3_official/', state_history=15)
     

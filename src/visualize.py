@@ -4,7 +4,8 @@ from graph.gnn import GNN_baseline
 import argparse
 import os
 import open3d as o3d
-import numpy as np
+import numpy as np 
+from graph.visual_dataset import VisualizeEpisode
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
@@ -17,6 +18,7 @@ if __name__ == '__main__':
                                      num_tracked_pts=100,
                                      topk_edge_threshold=10
     )
+    visual_dataset = VisualizeEpisode('../dataset/rigid_d3_official_single/episode_0')
     
     
     gnn = GNN_baseline(state_history_size=state_history,
@@ -31,21 +33,40 @@ if __name__ == '__main__':
     gnn.eval()
     
     with torch.no_grad():
-        for data, label in dataset:
+        for i in range(len(dataset)):
+            data,label = dataset[i]
             for key in data:
                 data[key] = data[key].to('cuda')
             out = gnn(**data)
             out = out.cpu().numpy()
             label = label.squeeze().cpu().numpy()
             
+            pcd, ptsrgb = visual_dataset[i+state_history]
+            
             # visualize spheres for out and label
-            origin = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.3, origin=[0, 0, 0])
+            origin = o3d.geometry.TriangleMesh.create_coordinate_frame(size=1.0, origin=[0, 0, 0])
             vis = o3d.visualization.Visualizer()
             vis.create_window(window_name='visualizer')
             vis.add_geometry(origin)
             
-            # pcl = o3d.geometry.PointCloud()
-            # vis.add_geometry(pcl)
+            workspace_bbox = np.array([[-0.3, 0.3],
+                                       [0.0, 1.0],
+                                       [-0.1, 0.5]])
+            mask = (pcd[:,0] > workspace_bbox[0,0]) & (pcd[:,0] < workspace_bbox[0,1]) & \
+                     (pcd[:,1] > workspace_bbox[1,0]) & (pcd[:,1] < workspace_bbox[1,1]) & \
+                        (pcd[:,2] > workspace_bbox[2,0]) & (pcd[:,2] < workspace_bbox[2,1])
+            pcd = pcd[mask, :]
+            ptsrgb = ptsrgb[mask, :]
+            
+            
+            
+            
+            # only consider point clouds inside the workspace
+            
+            pcl = o3d.geometry.PointCloud()
+            pcl.points = o3d.utility.Vector3dVector(pcd)
+            pcl.colors = o3d.utility.Vector3dVector(ptsrgb/255)
+            vis.add_geometry(pcl)
             for i in range(out.shape[0]):
                 sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.005, resolution=10, create_uv_map=True)
                 sphere.compute_vertex_normals()
