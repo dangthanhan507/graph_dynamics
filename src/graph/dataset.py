@@ -2,7 +2,6 @@ import sys
 sys.path.append('./')
 import torch
 from torch.utils.data.dataset import Dataset
-from torch.utils.data import DataLoader
 import os
 import pickle
 from itertools import accumulate
@@ -149,7 +148,9 @@ class TrackedDatasetBaseline(Dataset):
         # edge encoder takes in a fixed dimension, the # of edges vary wildly, so pad the onehot_edges
         if onehot_edges.shape[0] < self.max_edges:
             onehot_edges = torch.cat([onehot_edges, torch.zeros((self.max_edges - onehot_edges.shape[0], 2))], dim=0)
-        
+        if Rr.shape[0] < self.max_edges:
+            Rr = torch.cat([Rr, torch.zeros((self.max_edges - Rr.shape[0], Rr.shape[1]))], dim=0)
+            Rs = torch.cat([Rs, torch.zeros((self.max_edges - Rs.shape[0], Rs.shape[1]))], dim=0)
         
         graph_data = {
             'vertices_history': vertices_history, # (state_history, num_vertices, 3)
@@ -157,16 +158,15 @@ class TrackedDatasetBaseline(Dataset):
             'onehot_edges': onehot_edges, # (n_edge, 2)
             'Rr': Rr, # (n_edge, num_vertices)
             'Rs': Rs, # (n_edge, num_vertices)
-            'future_particle': future_vertices, # (1, num_vertices, 3) NOTE: label
         }
-        return graph_data
+        return graph_data, future_vertices
         
     def __len__(self):
         return self.length_dataset
     
     
 if __name__ == '__main__':
-    dataset = TrackedDatasetBaseline('../dataset/rigid_d3/', state_history=15)
+    dataset = TrackedDatasetBaseline('../dataset/rigid_d3_official/', state_history=15)
     
     print(dataset.episode_end_index)
     print(len(dataset))

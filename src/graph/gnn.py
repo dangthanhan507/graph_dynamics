@@ -89,21 +89,21 @@ class GNN_baseline(nn.Module):
         self.clamp_velocity = 100.0
         
         # vertex encoder takes in vertices_history + onehot_vertices + velocity of vertices
-        vertex_encoder_input_dim   = 3 * (state_history_size * num_vertices) + \
-                                     3 * (state_history_size - 1) * num_vertices + \
-                                     2 * num_vertices
+        vertex_encoder_input_dim   = 3 * (state_history_size) + \
+                                     3 * (state_history_size - 1) + \
+                                     2
         self.vertex_encoder        = Encoder(vertex_encoder_input_dim, self.num_features_vertex, self.vertex_embedding_size)
         
         # edge encoder takes in onehot_edges + padding + position difference of nodes of edge
-        edge_encoder_input_dim     = 2 * max_edges + 3 * max_edges
+        edge_encoder_input_dim     = 2 + 3
         self.edge_encoder          = Encoder(edge_encoder_input_dim, self.num_features_edge, self.edge_embedding_size)
         
         # edge propagation
-        edge_propagator_dim        = max_edges * edge_embedding_size + max_edges * vertex_embedding_size * 2
+        edge_propagator_dim        = edge_embedding_size + vertex_embedding_size * 2
         self.edge_propagator       = Propagator(edge_propagator_dim, self.edge_embedding_size)
         
         # vertex propagation
-        vertex_propagator_dim      = num_vertices * vertex_embedding_size + num_vertices * edge_embedding_size
+        vertex_propagator_dim      = vertex_embedding_size + edge_embedding_size
         self.vertex_propagator     = Propagator(vertex_propagator_dim, self.vertex_embedding_size)
         
         # decoder go from vertex_embedding_size to 3
@@ -121,19 +121,19 @@ class GNN_baseline(nn.Module):
         is_batch = (len(vertices_history.shape) == 4)
         
         dim_concat_vertex = 2 if is_batch else 1 # if batch dimension is present -> 2
-        velocity = (vertices_history[1:] - vertices_history[:-1]) # (state_history - 1, num_vertices, 3)
+        velocity = (vertices_history[:,1:] - vertices_history[:,:-1]) if is_batch else (vertices_history[1:] - vertices_history[:-1]) # (state_history - 1, num_vertices, 3)
         
         # vertex_encoder_input dim will be (num_vertices, -1)
         vertices_history_flat = vertices_history.permute(0, 2, 1, 3) if is_batch else vertices_history.permute(1, 0, 2)
-        vertices_history_flat = vertices_history_flat.view(vertices_history_flat.shape[0], vertices_history_flat.shape[1], -1) \
-                                    if is_batch else vertices_history_flat.view(vertices_history_flat.shape[0], -1)
+        vertices_history_flat = vertices_history_flat.reshape(vertices_history_flat.shape[0], vertices_history_flat.shape[1], -1) \
+                                    if is_batch else vertices_history_flat.reshape(vertices_history_flat.shape[0], -1)
         
         velocity_flat         = velocity.permute(0, 2, 1, 3) if is_batch else velocity.permute(1, 0, 2)
-        velocity_flat         = velocity_flat.view(velocity_flat.shape[0], velocity_flat.shape[1], -1) \
-                                    if is_batch else velocity_flat.view(velocity_flat.shape[0], -1)
+        velocity_flat         = velocity_flat.reshape(velocity_flat.shape[0], velocity_flat.shape[1], -1) \
+                                    if is_batch else velocity_flat.reshape(velocity_flat.shape[0], -1)
         
         dim_concat_vertex     = 2 if is_batch else 1
-        vertex_encoder_input  = torch.cat([vertices_history_flat, velocity_flat, onehot_vertices], dim=dim_concat_vertex)
+        vertex_encoder_input  = torch.cat([vertices_history_flat.to(torch.float32), velocity_flat.to(torch.float32), onehot_vertices], dim=dim_concat_vertex)
         
         '''
             Rr @ latest_state is weird, so this is an example of what's happening
@@ -173,12 +173,14 @@ class GNN_baseline(nn.Module):
         
         edge_position_diff = state_receivers - state_senders # ((B,), n_edge + pad, 3)
         dim_concat_edge = 2 if is_batch else 1
-        edge_encoder_input = torch.cat([onehot_edges, edge_position_diff], dim=dim_concat_edge)
+        edge_encoder_input = torch.cat([onehot_edges, edge_position_diff.to(torch.float32)], dim=dim_concat_edge)
         
         # get embeddings
         vertex_embedding = self.vertex_encoder(vertex_encoder_input) # ((B,), num_vertices, vertex_embedding_size)
         edge_embedding = self.edge_encoder(edge_encoder_input)       # ((B,), n_edge + pad, edge_embedding_size)
         
+        Rr = Rr.to(torch.float32)
+        Rs = Rs.to(torch.float32)
         Rr_agg = Rr.permute(0, 2, 1) if is_batch else Rr.permute(1, 0) # ((B,), num_vertices, n_edge + pad)
         
         #propagation steps
