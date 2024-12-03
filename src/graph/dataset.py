@@ -60,7 +60,11 @@ class TrackedDatasetBaseline(Dataset):
         self.state_history = state_history
         self.num_tracked_pts = num_tracked_pts
         self.adjacency_threshold = adj_threshold
+        
+        # if a node could only take on the top k edges
+        # then max number of edges is topk_edge_threshold * num_vertices
         self.topk_edge_threshold = topk_edge_threshold
+        self.max_edges = topk_edge_threshold * (num_tracked_pts + 1) # + 1 for end effector
         
         self.episode_lengths = [len(os.listdir(os.path.join(dataset_folder, episode_name,'camera_0/color'))) - state_history \
                                         for episode_name in os.listdir(dataset_folder) \
@@ -118,7 +122,7 @@ class TrackedDatasetBaseline(Dataset):
         
         
         # construct graph from last particle in horizon
-        Rr, Rs = construct_edges_from_states(vertices_history[-1], self.adjacency_threshold, object_mask, tool_mask, topk=10)
+        Rr, Rs = construct_edges_from_states(vertices_history[-1], self.adjacency_threshold, object_mask, tool_mask, topk=self.topk_edge_threshold)
         
         # edge_ij = (node_sender, node_receiver) = (node_i, node_j)
         # points from node_i to node_j
@@ -142,6 +146,11 @@ class TrackedDatasetBaseline(Dataset):
         # column 0 is object-object, column 1 is object-tool
         onehot_edges[edge_mask, 1] = 1
         
+        # edge encoder takes in a fixed dimension, the # of edges vary wildly, so pad the onehot_edges
+        if onehot_edges.shape[0] < self.max_edges:
+            onehot_edges = torch.cat([onehot_edges, torch.zeros((self.max_edges - onehot_edges.shape[0], 2))], dim=0)
+        
+        
         graph_data = {
             'vertices_history': vertices_history, # (state_history, num_vertices, 3)
             'onehot_vertices': onehot_vertices, # (num_vertices, 2)
@@ -162,3 +171,4 @@ if __name__ == '__main__':
     print(dataset.episode_end_index)
     print(len(dataset))
     print(dataset[0])
+    print(dataset[0]['onehot_edges'].shape)

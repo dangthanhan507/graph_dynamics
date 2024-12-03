@@ -180,3 +180,13 @@ def construct_edges_from_states_batch(states, adj_thresh, mask, tool_mask, topk=
     Rs[rels[:, 0], rels_idx, rels[:, 2]] = 1
     return Rr, Rs
         
+def pad_torch(x, max_dim, dim=0):
+    if dim == 0:
+        x_dim = x.shape[0]
+        x_pad = torch.zeros((max_dim, x.shape[1]), dtype=x.dtype, device=x.device)
+        x_pad[:x_dim] = x
+    elif dim == 1:
+        x_dim = x.shape[1]
+        x_pad = torch.zeros((x.shape[0], max_dim, x.shape[2]), dtype=x.dtype, device=x.device)
+        x_pad[:, :x_dim] = x
+    return x_pad
