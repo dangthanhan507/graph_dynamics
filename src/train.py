@@ -6,6 +6,9 @@ import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
 import random
+import argparse
+import os
+
 def dataloader_wrapper(dataloader, name):
     cnt = 0
     while True:
@@ -23,7 +26,10 @@ def set_seed(seed):
     random.seed(seed)
 
 if __name__ == '__main__':
-    
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('--chkpt_path', type=str, default='chkpt')
+    argparser.add_argument('--model_file', type=str, default='model.pth')
+    args = argparser.parse_args()
     set_seed(42)
     batch_size = 256
     total_epochs = 20
@@ -58,6 +64,7 @@ if __name__ == '__main__':
                        num_features_edge=512,
                        num_features_decode=512,
                        message_passing_steps=3).to('cuda')
+    gnn.train()
     optimizer = torch.optim.Adam(gnn.parameters(), lr=1e-4)
     for epoch in range(total_epochs):
         print("Epoch:", epoch)
@@ -99,3 +106,7 @@ if __name__ == '__main__':
                 del data, label
         print("Train Loss:", train_loss / num_loops_train)
         print("Validation Loss:", validation_loss / num_loop_val)
+    
+    # save to pth
+    os.makedirs(args.chkpt_path, exist_ok=True)
+    torch.save(gnn.state_dict(), os.path.join(args.chkpt_path, args.model_file))
